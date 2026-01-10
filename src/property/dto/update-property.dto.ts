@@ -1,4 +1,3 @@
-// update-property.dto.ts
 import { PartialType } from '@nestjs/mapped-types';
 import { CreatePropertyDto } from './create-property.dto';
 import { IsOptional, ValidateNested } from 'class-validator';
