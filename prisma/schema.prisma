@@ -12,112 +12,197 @@ datasource db {
 //        USER MODEL
 // =============================
 model User {
-  id            String      @id @default(uuid())
-  firstName     String?     @map("first_name")
-  middleName    String?     @map("middle_name")
-  lastName      String?     @map("last_name")
-  email         String      @unique
-  phone         String?     @unique
-  password      String?
-  profileImage  String?     @map("profile_image")
-  role          Role        @default(tenant)
-  passwordChangedAt DateTime? @map("password_changed_at")
-  failedLoginAttempts Int     @default(0) @map("failed_login_attempts")
-  lockedUntil   DateTime?   @map("locked_until")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @default(now()) @updatedAt @map("updated_at")
+  id                     String      @id @default(uuid())
+  firstName              String?     @map("first_name")
+  middleName             String?     @map("middle_name")
+  lastName               String?     @map("last_name")
+  email                  String      @unique
+  phone                  String?     @unique
+  password               String
+  profileImage           String?     @map("profile_image")
+  coverImage             String?     @map("cover_image")
+
+  role                   Role        @default(owner)
+  accountType            String?     @map("account_type")
+  companyName            String?     @map("company_name")
+  businessId             String?     @map("business_id")
+
+  address                String?
+  city                   String?     @default("Kinshasa")
+
+  isDeleted              Boolean     @default(false)
+  isActive               Boolean     @default(true)
+  isEmailVerified        Boolean     @default(false)
+  isPhoneVerified        Boolean     @default(false)
+
+  passwordChangedAt      DateTime?
+  lastLoginAt            DateTime?
+
+  lockedUntil            DateTime?
+  failedLoginAttempts    Int?        @default(0)
+
+  createdAt              DateTime    @default(now())
+  updatedAt              DateTime    @updatedAt
 
   // Relations
-  properties    Property[]
-  bookings      Booking[]
-  reviews       Review[]
-  favorites     Favorite[]
-  refreshTokens RefreshToken[]
+  properties             Property[]
+  bookings               Booking[]
+  reviews                Review[]
+  favorites              Favorite[]
+  refreshTokens          RefreshToken[]
+
+  ownedTenants           Tenant[]    @relation("OwnerTenants")
+  tenantProfile          Tenant?     @relation("TenantUser")
+
+  leasesAsOwner          Lease[]     @relation("OwnerLeases")
+  notifications          Notification[]
 
   @@map("users")
 }
 
 // =============================
-//        ADDRESS MODEL
+//        TENANT MODEL
 // =============================
-model Address {
-  id        String   @id @default(uuid())
-  commune   String
-  quartier  String
-  avenue    String
-  number    String?
-  city      String   @default("Kinshasa")
-  province  String   @default("Kinshasa")
-  latitude  Decimal? @db.Decimal(10, 8)
-  longitude Decimal? @db.Decimal(11, 8)
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+model Tenant {
+  id         String   @id @default(uuid())
+  email      String?
+  phone      String?
+  firstName  String?
+  lastName   String?
 
-  // Relations
-  properties Property[]
+  ownerId    String
+  owner      User     @relation("OwnerTenants", fields: [ownerId], references: [id])
 
-  @@map("addresses")
+  userId     String?  @unique
+  user       User?    @relation("TenantUser", fields: [userId], references: [id])
+
+  leases     Lease[]
+  isActive   Boolean  @default(true)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([email])
 }
 
 // =============================
 //        PROPERTY MODEL
 // =============================
 model Property {
-  id              String          @id @default(uuid())
-  userId          String          @map("user_id")
-  addressId       String          @map("address_id")
-  title           String
-  slug            String          @default("temp-slug")
-  shortDescription String?        @map("short_description")
-  description     String?
-  propertyType    PropertyType
-  price           Decimal         @db.Decimal(12, 2)
-  priceUnit       PriceUnit      @default(journalier) @map("price_unit")
-  currency        Currency        @default(USD)
-  status          PropertyStatus  @default(available)
-  purpose         PropertyPurpose @default(A_LOUER)
-  maxGuests       Int?
-  bedrooms        Int?
-  beds            Int?
-  bathrooms       Int?
-  kitchens        Int?
-  livingRooms     Int?
-  otherRooms      String?
-  isFeatured      Boolean         @default(false) @map("is_featured")
-  isVerified      Boolean         @default(false) @map("is_verified")
-  views           Int             @default(0)
-  discount        Int?            @default(0)
-  paymentType     String?         @map("payment_type")
-  specialNotes    String?         @map("special_notes")
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  id               String          @id @default(uuid())
+  userId           String
+  addressId        String
 
-  // Relations
-  user            User            @relation(fields: [userId], references: [id])
-  address         Address         @relation(fields: [addressId], references: [id])
-  images          PropertyImage[]
-  bookings        Booking[]
-  reviews         Review[]
-  favorites       Favorite[]
-  amenities       PropertyAmenity[]
+  title            String
+  slug             String
 
+  shortDescription String?
+  description      String?
+
+  propertyType     PropertyType
+
+  price            Decimal         @db.Decimal(12, 2)
+  currency         Currency        @default(USD)
+
+  status           PropertyStatus  @default(available)
+  purpose          PropertyPurpose @default(A_LOUER)
+
+  // ✅ AJOUTE CES CHAMPS
+  maxGuests        Int?
+  bedrooms         Int?
+  beds             Int?
+  bathrooms        Int?
+  kitchens         Int?
+  livingRooms      Int?
+  otherRooms       String?
+
+  isFeatured       Boolean @default(false)
+  isVerified       Boolean @default(false)
+
+  discount         Decimal? @db.Decimal(5,2)
+  paymentType      String?
+  specialNotes     String?
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  user             User            @relation(fields: [userId], references: [id])
+  address          Address         @relation(fields: [addressId], references: [id])
+
+  images           PropertyImage[]
+  bookings         Booking[]
+  reviews          Review[]
+  favorites        Favorite[]
+  amenities        PropertyAmenity[]
+  leases           Lease[]
+  priceUnit        PriceUnit       @default(MONTH)
   @@map("properties")
 }
 
 // =============================
-//        PROPERTY IMAGE
+//        PROPERTY IMAGE MODEL
 // =============================
 model PropertyImage {
   id         String   @id @default(uuid())
-  propertyId String   @map("property_id")
-  imageUrl   String   @map("image_url")
-  isPrimary  Boolean  @default(false) @map("is_primary")
-  createdAt  DateTime @default(now()) @map("created_at")
+  propertyId String
+  imageUrl   String
+  isPrimary  Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
-  // Relations
-  property   Property @relation(fields: [propertyId], references: [id])
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@map("property_images")
+}
+
+// =============================
+//        LEASE MODEL
+// =============================
+model Lease {
+  id           String      @id @default(uuid())
+
+  propertyId   String
+  tenantId     String
+  ownerId      String
+
+  startDate    DateTime
+  endDate      DateTime?
+
+  rentAmount   Decimal     @db.Decimal(12,2)
+  currency     Currency    @default(USD)
+  deposit      Decimal?    @db.Decimal(12,2)
+
+  status       LeaseStatus @default(active)
+  isActive     Boolean     @default(true)
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  property     Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  owner        User        @relation("OwnerLeases", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("leases")
+}
+
+// =============================
+//        ADDRESS MODEL
+// =============================
+model Address {
+  id         String    @id @default(uuid())
+  commune    String
+  quartier   String
+  avenue     String
+  number     String?
+  city       String    @default("Kinshasa")
+  province   String    @default("Kinshasa")
+  latitude   Decimal?  @db.Decimal(10, 8)
+  longitude  Decimal?  @db.Decimal(11, 8)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  properties Property[]
+
+  @@map("addresses")
 }
 
 // =============================
@@ -125,18 +210,17 @@ model PropertyImage {
 // =============================
 model Booking {
   id           String        @id @default(uuid())
-  propertyId   String        @map("property_id")
-  userId       String        @map("user_id")
-  startDate    DateTime      @map("start_date")
-  endDate      DateTime      @map("end_date")
+  propertyId   String
+  userId       String
+  startDate    DateTime
+  endDate      DateTime
   status       BookingStatus @default(pending)
-  totalAmount  Decimal       @db.Decimal(12, 2) @map("total_amount")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  totalAmount  Decimal       @db.Decimal(12, 2)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  // Relations
-  property     Property @relation(fields: [propertyId], references: [id])
-  user         User     @relation(fields: [userId], references: [id])
+  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("bookings")
 }
@@ -146,15 +230,14 @@ model Booking {
 // =============================
 model Review {
   id         String   @id @default(uuid())
-  propertyId String   @map("property_id")
-  userId     String   @map("user_id")
+  propertyId String
+  userId     String
   rating     Int
   comment    String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  createdAt  DateTime @default(now())
 
-  // Relations
-  property   Property @relation(fields: [propertyId], references: [id])
-  user       User     @relation(fields: [userId], references: [id])
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("reviews")
 }
@@ -164,13 +247,12 @@ model Review {
 // =============================
 model Favorite {
   id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  propertyId String   @map("property_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  userId     String
+  propertyId String
+  createdAt  DateTime @default(now())
 
-  // Relations
-  user       User     @relation(fields: [userId], references: [id])
-  property   Property @relation(fields: [propertyId], references: [id])
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
   @@map("favorites")
 }
@@ -180,39 +262,55 @@ model Favorite {
 // =============================
 model RefreshToken {
   id           String   @id @default(uuid())
-  userId       String   @map("user_id")
+  userId       String
   token        String   @unique
-  expiresAt    DateTime @map("expires_at")
-  isRevoked    Boolean  @default(false) @map("is_revoked")
-  replacedBy   String?  @map("replaced_by")
-  userAgent    String?  @map("user_agent")
-  ipAddress    String?  @map("ip_address")
-  createdAt    DateTime @default(now()) @map("created_at")
-  revokedAt    DateTime? @map("revoked_at")
+  expiresAt    DateTime
+  isRevoked    Boolean  @default(false)
+  replacedBy   String?
+  userAgent    String?
+  ipAddress    String?
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
 
-  // Relations
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("refresh_tokens")
   @@index([userId])
   @@index([token])
+  @@map("refresh_tokens")
 }
 
 // =============================
 //        AMENITY MODEL
 // =============================
 model Amenity {
-  id        String      @id @default(uuid())
-  name      String      @unique
+  id         String          @id @default(uuid())
+  name       String          @unique
   properties PropertyAmenity[]
 }
 
 model PropertyAmenity {
-  id         String    @id @default(uuid())
-  property   Property  @relation(fields: [propertyId], references: [id])
+  id         String   @id @default(uuid())
   propertyId String
-  amenity    Amenity   @relation(fields: [amenityId], references: [id])
   amenityId  String
+
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+}
+
+// =============================
+//        NOTIFICATION MODEL
+// =============================
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@map("notifications")
 }
 
 // =============================
@@ -270,8 +368,14 @@ enum BookingStatus {
   confirmed
   cancelled
 }
+
+enum LeaseStatus {
+  active
+  terminated
+  expired
+}
 enum PriceUnit {
-  journalier
-  mensuel
-  annuel
+  DAY
+  MONTH
+  YEAR
 }

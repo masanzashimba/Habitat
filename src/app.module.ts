@@ -5,6 +5,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { PropertyModule } from './property/property.module';
+import { BookingModule } from './booking/booking.module';
+import { TenantModule } from './tenant/tenant.module';
+import { ReviewModule } from './review/review.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { PropertyModule } from './property/property.module';
     UserModule,
     AuthModule,
     PropertyModule,
+    BookingModule,
+    TenantModule,
+    ReviewModule,
   ],
   controllers: [],
   providers: [

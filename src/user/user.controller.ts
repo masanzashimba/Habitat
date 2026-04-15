@@ -1,9 +1,20 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Put,
+  Delete,
+  Param,
+  Body,
+  UseGuards,
+  Request,
+} from '@nestjs/common';
 import { UserService } from './user.service';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { CreateUserDto } from './dto/create-user.dto';
-import { AuthGuard } from '@nestjs/passport';
+import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
 
+@UseGuards(JwtAccessGuard)
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -12,38 +23,61 @@ export class UserController {
     return { success, data, message };
   }
 
-  @Get()
-  async findAll() {
-    const users = await this.userService.getUsers();
-    return this.response(true, users, 'Liste des utilisateurs récupérée avec succès');
+  // =========================
+  // Tous les utilisateurs (admin)
+  // =========================
+  @Get('all')
+  async findAll(@Request() req: any) {
+    const users = await this.userService.getUsers(req.user.id);
+    return this.response(
+      true,
+      users,
+      'Liste des utilisateurs récupérée avec succès',
+    );
   }
 
+  // =========================
+  // Profil connecté (⚠️ doit être AVANT :id)
+  // =========================
+  @Get('me')
+  async getProfile(@Request() req: any) {
+    const user = await this.userService.getUserById(req.user.id);
+    return this.response(true, user, 'Profil récupéré avec succès');
+  }
+
+  // =========================
+  // Un utilisateur par ID
+  // =========================
   @Get(':id')
   async findOne(@Param('id') id: string) {
     const user = await this.userService.getUserById(id);
     return this.response(true, user, 'Utilisateur trouvé');
   }
 
+  // =========================
+  // Créer un utilisateur (register)
+  // =========================
   @Post('create')
   async create(@Body() dto: CreateUserDto) {
     const user = await this.userService.createUser(dto);
     return this.response(true, user, 'Utilisateur créé avec succès');
   }
 
+  // =========================
+  // Mettre à jour un utilisateur
+  // =========================
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
     const user = await this.userService.updateUser(id, dto);
     return this.response(true, user, 'Utilisateur mis à jour');
   }
 
+  // =========================
+  // Supprimer un utilisateur (soft delete)
+  // =========================
   @Delete(':id')
   async remove(@Param('id') id: string) {
     await this.userService.deleteUser(id);
     return this.response(true, null, 'Utilisateur supprimé');
   }
-  @UseGuards(AuthGuard('jwt'))
-@Get('me')
-async getProfile(@Request() req) {
-  return req.user; 
-}
 }

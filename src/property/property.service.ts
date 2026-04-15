@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -15,7 +16,20 @@ export class PropertyService {
     private cloudinaryService: CloudinaryService,
   ) {}
 
-  // Helper pour convertir strings en numbers/booleans
+  // 🔥 SLUG
+  private generateSlug(title: string): string {
+    const timestamp = Date.now();
+    return (
+      title
+        .toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '') + `-${timestamp}`
+    );
+  }
+
+  // 🔥 TRANSFORM DATA
   private transformFormData(dto: any) {
     const intFields = [
       'maxGuests',
@@ -26,23 +40,39 @@ export class PropertyService {
       'livingRooms',
       'discount',
     ];
+
     const boolFields = ['isFeatured', 'isVerified'];
 
-    for (const field of intFields) {
-      if (dto[field] !== undefined) {
-        dto[field] = Number(dto[field]);
-      }
-    }
+    intFields.forEach((field) => {
+      if (dto[field] !== undefined) dto[field] = Number(dto[field]);
+    });
 
-    for (const field of boolFields) {
-      if (dto[field] !== undefined) {
+    boolFields.forEach((field) => {
+      if (dto[field] !== undefined)
         dto[field] = dto[field] === 'true' || dto[field] === true;
-      }
-    }
+    });
 
     return dto;
   }
 
+  // 🔥 CHECK OWNER
+  private async checkOwnership(propertyId: string, userId: string) {
+    const property = await this.prisma.property.findUnique({
+      where: { id: propertyId },
+    });
+
+    if (!property) throw new NotFoundException('Property not found');
+
+    if (property.userId !== userId) {
+      throw new ForbiddenException("Tu n'es pas autorisé à modifier ce bien");
+    }
+
+    return property;
+  }
+
+  // =============================
+  // CREATE
+  // =============================
   async create(
     createPropertyDto: CreatePropertyDto,
     userId: string,
@@ -53,98 +83,149 @@ export class PropertyService {
 
     if (!address) throw new BadRequestException('Address is required');
     if (!userId) throw new BadRequestException('User ID is required');
-    if (!files || files.length < 5) {
+
+    if (!files || files.length < 3) {
       throw new BadRequestException(
-        `At least 5 images are required. You provided ${files?.length || 0}`,
+        `Minimum 3 images requises (reçu: ${files?.length || 0})`,
       );
     }
 
-    const property = await this.prisma.property.create({
-      data: {
-        ...propertyData,
-        user: { connect: { id: userId } },
-        address: {
-          create: {
-            commune: address.commune,
-            quartier: address.quartier,
-            avenue: address.avenue,
-            number: address.number,
-            city: address.city ?? 'Kinshasa',
-            province: address.province ?? 'Kinshasa',
-            latitude: address.latitude ? Number(address.latitude) : undefined,
-            longitude: address.longitude
-              ? Number(address.longitude)
-              : undefined,
-          },
-        },
-        ...(amenities && {
-          amenities: {
-            create: amenities.map((name) => ({
-              amenity: {
-                connectOrCreate: {
-                  where: { name },
-                  create: { name },
-                },
+    // 🔥 ÉTAPE 1: Créer la propriété dans une transaction rapide
+    const property = await this.prisma.$transaction(
+      async (tx) => {
+        const createdProperty = await tx.property.create({
+          data: {
+            ...propertyData,
+            slug: this.generateSlug(propertyData.title),
+            user: {
+              connect: { id: userId },
+            },
+
+            address: {
+              create: {
+                commune: address.commune,
+                quartier: address.quartier,
+                avenue: address.avenue,
+                number: address.number,
+                city: address.city || 'Kinshasa',
+                province: address.province || 'Kinshasa',
+                latitude: address.latitude
+                  ? Number(address.latitude)
+                  : undefined,
+                longitude: address.longitude
+                  ? Number(address.longitude)
+                  : undefined,
               },
-            })),
-          },
-        }),
-      },
-      include: { address: true, amenities: { include: { amenity: true } } },
-    });
+            },
 
-    for (const [i, file] of files.entries()) {
-      const upload = await this.cloudinaryService.uploadImageBuffer(
-        file.buffer,
-        file.originalname,
-      );
-      await this.prisma.propertyImage.create({
-        data: {
-          imageUrl: upload.secure_url,
-          propertyId: property.id,
-          isPrimary: i === 0,
-        },
+            ...(amenities && {
+              amenities: {
+                create: amenities.map((name) => ({
+                  amenity: {
+                    connectOrCreate: {
+                      where: { name },
+                      create: { name },
+                    },
+                  },
+                })),
+              },
+            }),
+          },
+        });
+
+        return createdProperty;
+      },
+      {
+        maxWait: 10000, // Attendre max 10s pour acquérir la transaction
+        timeout: 15000, // Timeout de 15s pour la transaction
+      },
+    );
+
+    // 🔥 ÉTAPE 2: Uploader les images en parallèle (hors transaction)
+    try {
+      const uploadPromises = files.map(async (file, index) => {
+        const upload = await this.cloudinaryService.uploadImageBuffer(
+          file.buffer,
+          file.originalname,
+        );
+
+        return this.prisma.propertyImage.create({
+          data: {
+            imageUrl: upload.secure_url,
+            propertyId: property.id,
+            isPrimary: index === 0,
+          },
+        });
       });
+
+      // Attendre que tous les uploads soient terminés
+      await Promise.all(uploadPromises);
+    } catch (error) {
+      // Si l'upload échoue, supprimer la propriété créée
+      await this.prisma.property.delete({ where: { id: property.id } });
+      throw new BadRequestException(
+        `Erreur lors de l'upload des images: ${error.message}`,
+      );
     }
 
+    // 🔥 ÉTAPE 3: Retourner la propriété complète avec les images
     return this.findOne(property.id);
   }
 
-  async findAll(userId?: string) {
+  // =============================
+  // FIND ALL
+  // =============================
+  async findAll(userId?: string, includeUnavailable: boolean = false) {
+    const whereClause: any = {};
+
+    // Si on n'inclut pas les indisponibles, filtrer par statut
+    if (!includeUnavailable) {
+      whereClause.status = 'available';
+    }
+
     return this.prisma.property.findMany({
+      where: whereClause,
       include: {
         images: true,
-        bookings: true,
-        reviews: true,
         address: true,
+        reviews: true,
         amenities: { include: { amenity: true } },
-        favorites: userId ? { where: { userId }, select: { id: true } } : false,
+        favorites: true, // Retourner TOUS les favoris pour compter
       },
       orderBy: { createdAt: 'desc' },
     });
   }
 
+  // =============================
+  // FIND ONE
+  // =============================
   async findOne(id: string) {
     const property = await this.prisma.property.findUnique({
       where: { id },
       include: {
         images: true,
-        bookings: true,
+        address: true,
         reviews: true,
         favorites: true,
         amenities: { include: { amenity: true } },
       },
     });
-    if (!property) throw new NotFoundException(`Property ${id} not found`);
+
+    if (!property) throw new NotFoundException('Property not found');
+
     return property;
   }
 
+  // =============================
+  // UPDATE
+  // =============================
   async update(
     id: string,
+    userId: string,
     updatePropertyDto: UpdatePropertyDto,
     file?: Express.Multer.File,
   ) {
-    await this.findOne(id);
+    await this.checkOwnership(id, userId);
 
     const { address, amenities, ...propertyData } =
       this.transformFormData(updatePropertyDto);
@@ -153,9 +234,16 @@ export class PropertyService {
       where: { id },
       data: {
         ...propertyData,
-        ...(address && { address: { update: address } }),
+
+        ...(address && {
+          address: {
+            update: address,
+          },
+        }),
+
         ...(amenities && {
           amenities: {
+            deleteMany: {}, // 🔥 reset avant ajout
             create: amenities.map((name) => ({
               amenity: {
                 connectOrCreate: {
@@ -167,19 +255,19 @@ export class PropertyService {
           },
         }),
       },
-      include: { address: true, amenities: { include: { amenity: true } } },
     });
 
+    // 🔥 IMAGE UPDATE
     if (file) {
       const upload = await this.cloudinaryService.uploadImageBuffer(
         file.buffer,
         file.originalname,
       );
+
       await this.prisma.propertyImage.create({
         data: {
           imageUrl: upload.secure_url,
           propertyId: property.id,
-          isPrimary: false,
         },
       });
     }
@@ -187,11 +275,38 @@ export class PropertyService {
     return this.findOne(property.id);
   }
 
-  async remove(id: string) {
-    await this.findOne(id);
-    return this.prisma.property.delete({ where: { id } });
+  // =============================
+  // UPDATE STATUS
+  // =============================
+  async updateStatus(
+    id: string,
+    status: 'available' | 'rented' | 'sold',
+    userId: string,
+  ) {
+    await this.checkOwnership(id, userId);
+
+    const property = await this.prisma.property.update({
+      where: { id },
+      data: { status },
+    });
+
+    return { property, message: `Statut mis à jour: ${status}` };
   }
 
+  // =============================
+  // DELETE
+  // =============================
+  async remove(id: string, userId: string) {
+    await this.checkOwnership(id, userId);
+
+    return this.prisma.property.delete({
+      where: { id },
+    });
+  }
+
+  // =============================
+  // FAVORITES
+  // =============================
   async toggleFavorite(propertyId: string, userId: string) {
     const existing = await this.prisma.favorite.findFirst({
       where: { propertyId, userId },
@@ -202,7 +317,10 @@ export class PropertyService {
       return { propertyId, liked: false };
     }
 
-    await this.prisma.favorite.create({ data: { propertyId, userId } });
+    await this.prisma.favorite.create({
+      data: { propertyId, userId },
+    });
+
     return { propertyId, liked: true };
   }
 
@@ -211,10 +329,31 @@ export class PropertyService {
       where: { userId },
       select: { propertyId: true },
     });
-    return favorites.map((fav) => fav.propertyId);
+
+    return favorites.map((f) => f.propertyId);
   }
 
+  // =============================
+  // FIND USER PROPERTIES
+  // =============================
+  async findUserProperties(userId: string, includeUnavailable: boolean = true) {
+    return this.prisma.property.findMany({
+      where: { userId },
+      include: {
+        images: true,
+        address: true,
+        reviews: true,
+        amenities: { include: { amenity: true } },
+        favorites: true, // Retourner TOUS les favoris pour compter
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // =============================
+  // SECURE TEST
+  // =============================
   findSecure() {
-    return { message: 'Accès sécurisé avec JwtCookieGuard ✅' };
+    return { message: 'Accès sécurisé OK 🔐' };
   }
 }
