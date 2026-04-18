@@ -26,11 +26,7 @@ export class AuthService {
     private configService: ConfigService,
   ) {}
 
-  async register(
-    dto: CreateUserDto,
-    userAgent?: string,
-    ipAddress?: string,
-  ) {
+  async register(dto: CreateUserDto, userAgent?: string, ipAddress?: string) {
     const existingUser = await this.userService.findByEmail(dto.email);
     if (existingUser) {
       throw new ConflictException('Un utilisateur avec cet email existe déjà');
@@ -57,11 +53,7 @@ export class AuthService {
     };
   }
 
-  async login(
-    dto: LoginDto,
-    userAgent?: string,
-    ipAddress?: string,
-  ) {
+  async login(dto: LoginDto, userAgent?: string, ipAddress?: string) {
     const user = await this.userService.findByEmail(dto.email);
     if (!user) {
       throw new UnauthorizedException('Email ou mot de passe invalide');
@@ -100,7 +92,10 @@ export class AuthService {
   async forgotPassword(email: string) {
     const user = await this.userService.findByEmail(email);
     if (!user) {
-      return { message: 'Si cet email existe, un lien de réinitialisation a été envoyé' };
+      return {
+        message:
+          'Si cet email existe, un lien de réinitialisation a été envoyé',
+      };
     }
 
     const resetToken = this.jwtService.sign(
@@ -115,7 +110,9 @@ export class AuthService {
 
     await this.mailService.sendResetPassword(user.email, resetLink);
 
-    return { message: 'Si cet email existe, un lien de réinitialisation a été envoyé' };
+    return {
+      message: 'Si cet email existe, un lien de réinitialisation a été envoyé',
+    };
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -200,9 +197,8 @@ export class AuthService {
     userAgent?: string,
     ipAddress?: string,
   ) {
-    const { userId } = await this.refreshTokenService.validateRefreshToken(
-      oldRefreshToken,
-    );
+    const { userId } =
+      await this.refreshTokenService.validateRefreshToken(oldRefreshToken);
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -239,6 +235,47 @@ export class AuthService {
     return { message: 'Déconnexion réussie' };
   }
 
+  async getFullProfile(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId, isDeleted: false },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        middleName: true,
+        lastName: true,
+        phone: true,
+        profileImage: true,
+        coverImage: true,
+        role: true,
+        accountType: true,
+        companyName: true,
+        businessId: true,
+        address: true,
+        city: true,
+        isActive: true,
+        isEmailVerified: true,
+        isPhoneVerified: true,
+        passwordChangedAt: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Utilisateur non trouvé');
+    }
+
+    // Mettre à jour la dernière activité
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return user;
+  }
+
   private async checkAccountLock(userId: string) {
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
@@ -262,6 +299,7 @@ export class AuthService {
     });
 
     const attempts = (user?.failedLoginAttempts || 0) + 1;
+    const remainingAttempts = AUTH_CONSTANTS.MAX_LOGIN_ATTEMPTS - attempts;
 
     if (attempts >= AUTH_CONSTANTS.MAX_LOGIN_ATTEMPTS) {
       const lockUntil = new Date();
@@ -276,11 +314,19 @@ export class AuthService {
           lockedUntil: lockUntil,
         },
       });
+
+      throw new UnauthorizedException(
+        `Compte verrouillé pour ${AUTH_CONSTANTS.LOCK_DURATION_MINUTES} minutes après ${AUTH_CONSTANTS.MAX_LOGIN_ATTEMPTS} tentatives échouées`,
+      );
     } else {
       await this.prisma.user.update({
         where: { id: userId },
         data: { failedLoginAttempts: attempts },
       });
+
+      throw new UnauthorizedException(
+        `Email ou mot de passe invalide. ${remainingAttempts} tentative(s) restante(s)`,
+      );
     }
   }
 

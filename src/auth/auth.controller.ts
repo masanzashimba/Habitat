@@ -33,19 +33,34 @@ export class AuthController {
     res: Response,
     accessToken: string,
     refreshToken: string,
+    rememberMe: boolean = false,
   ) {
+    // Access token avec durée courte
     res.cookie(AUTH_CONSTANTS.ACCESS_TOKEN_COOKIE_NAME, accessToken, {
       ...AUTH_CONSTANTS.COOKIE_OPTIONS,
     });
 
-    res.cookie(AUTH_CONSTANTS.REFRESH_TOKEN_COOKIE_NAME, refreshToken, {
-      ...AUTH_CONSTANTS.COOKIE_OPTIONS,
-    });
+    // Refresh token avec durée adaptée selon rememberMe
+    const refreshCookieOptions = rememberMe
+      ? AUTH_CONSTANTS.REFRESH_COOKIE_OPTIONS
+      : { ...AUTH_CONSTANTS.COOKIE_OPTIONS, maxAge: undefined }; // Session cookie si pas rememberMe
+
+    res.cookie(
+      AUTH_CONSTANTS.REFRESH_TOKEN_COOKIE_NAME,
+      refreshToken,
+      refreshCookieOptions,
+    );
   }
 
   private clearCookies(res: Response) {
-    res.clearCookie(AUTH_CONSTANTS.ACCESS_TOKEN_COOKIE_NAME, AUTH_CONSTANTS.COOKIE_OPTIONS);
-    res.clearCookie(AUTH_CONSTANTS.REFRESH_TOKEN_COOKIE_NAME, AUTH_CONSTANTS.COOKIE_OPTIONS);
+    res.clearCookie(
+      AUTH_CONSTANTS.ACCESS_TOKEN_COOKIE_NAME,
+      AUTH_CONSTANTS.COOKIE_OPTIONS,
+    );
+    res.clearCookie(
+      AUTH_CONSTANTS.REFRESH_TOKEN_COOKIE_NAME,
+      AUTH_CONSTANTS.COOKIE_OPTIONS,
+    );
   }
 
   @Public()
@@ -74,7 +89,7 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @HttpCode(HttpStatus.OK)
   async login(
-    @Body() dto: LoginDto,
+    @Body() dto: LoginDto & { rememberMe?: boolean },
     @Res({ passthrough: true }) res: Response,
     @Ip() ipAddress: string,
     @Headers('user-agent') userAgent: string,
@@ -85,7 +100,7 @@ export class AuthController {
       ipAddress,
     );
 
-    this.setCookies(res, accessToken, refreshToken);
+    this.setCookies(res, accessToken, refreshToken, dto.rememberMe);
 
     return { user };
   }
@@ -102,11 +117,12 @@ export class AuthController {
   ) {
     const oldRefreshToken = req.cookies?.refresh_token;
 
-    const { accessToken, refreshToken } = await this.authService.refreshAccessToken(
-      oldRefreshToken,
-      userAgent,
-      ipAddress,
-    );
+    const { accessToken, refreshToken } =
+      await this.authService.refreshAccessToken(
+        oldRefreshToken,
+        userAgent,
+        ipAddress,
+      );
 
     this.setCookies(res, accessToken, refreshToken);
 
@@ -116,8 +132,13 @@ export class AuthController {
   @UseGuards(JwtAccessGuard)
   @Get('me')
   @HttpCode(HttpStatus.OK)
-  getProfile(@CurrentUser() user: any) {
-    return user;
+  async getProfile(@CurrentUser('userId') userId: string) {
+    const user = await this.authService.getFullProfile(userId);
+    return {
+      success: true,
+      data: user,
+      message: 'Profil récupéré avec succès',
+    };
   }
 
   @Public()
@@ -136,7 +157,10 @@ export class AuthController {
     @Body() dto: ResetPasswordDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const result = await this.authService.resetPassword(dto.token, dto.newPassword);
+    const result = await this.authService.resetPassword(
+      dto.token,
+      dto.newPassword,
+    );
     this.clearCookies(res);
     return result;
   }

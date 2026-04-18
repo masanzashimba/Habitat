@@ -64,11 +64,23 @@ model User {
 //        TENANT MODEL
 // =============================
 model Tenant {
-  id         String   @id @default(uuid())
-  email      String?
-  phone      String?
-  firstName  String?
-  lastName   String?
+  id              String   @id @default(uuid())
+  email           String?
+  phone           String?
+  firstName       String?
+  lastName        String?
+  profileImage    String?  // Photo de profil du locataire
+  
+  // Informations supplémentaires pour la gestion
+  dateOfBirth     DateTime?
+  nationalId      String?   // Numéro de carte d'identité
+  address         String?   // Adresse actuelle du locataire
+  city            String?
+  emergencyContact String?  // Contact d'urgence
+  emergencyPhone   String?  // Téléphone d'urgence
+  occupation      String?   // Profession
+  employer        String?   // Employeur
+  monthlyIncome   Decimal?  @db.Decimal(12,2) // Revenu mensuel
 
   ownerId    String
   owner      User     @relation("OwnerTenants", fields: [ownerId], references: [id])
@@ -83,6 +95,7 @@ model Tenant {
   updatedAt  DateTime @updatedAt
 
   @@index([email])
+  @@map("tenants")
 }
 
 // =============================

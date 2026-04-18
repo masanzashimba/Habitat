@@ -8,10 +8,14 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import * as bcrypt from 'bcrypt';
 import { Role, Currency, LeaseStatus } from 'generated/prisma';
+import { CloudinaryService } from '../cloudinary.service';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cloudinaryService: CloudinaryService,
+  ) {}
 
   // =========================
   // GET ALL USERS
@@ -35,6 +39,7 @@ export class UserService {
         role: true,
         accountType: true,
         companyName: true,
+        profileImage: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -58,6 +63,7 @@ export class UserService {
         role: true,
         accountType: true,
         companyName: true,
+        profileImage: true,
         isActive: true,
         createdAt: true,
         updatedAt: true,
@@ -74,7 +80,7 @@ export class UserService {
   // =========================
   // CREATE USER
   // =========================
-  async createUser(dto: CreateUserDto) {
+  async createUser(dto: CreateUserDto, profileImage?: Express.Multer.File) {
     const existEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -90,6 +96,15 @@ export class UserService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    let profileImageUrl: string | null = null;
+    if (profileImage) {
+      const uploadResult = await this.cloudinaryService.uploadProfileImage(
+        profileImage.buffer,
+        `user-${Date.now()}-${profileImage.originalname}`,
+      );
+      profileImageUrl = uploadResult.secure_url;
+    }
+
     return this.prisma.user.create({
       data: {
         email: dto.email,
@@ -104,6 +119,7 @@ export class UserService {
         businessId: dto.businessId ?? null,
         address: dto.address ?? null,
         city: dto.city ?? 'Kinshasa',
+        profileImage: profileImageUrl,
       },
       select: {
         id: true,
@@ -115,6 +131,7 @@ export class UserService {
         role: true,
         accountType: true,
         companyName: true,
+        profileImage: true,
         createdAt: true,
       },
     });
@@ -123,7 +140,11 @@ export class UserService {
   // =========================
   // UPDATE USER
   // =========================
-  async updateUser(id: string, dto: UpdateUserDto) {
+  async updateUser(
+    id: string,
+    dto: UpdateUserDto,
+    profileImage?: Express.Multer.File,
+  ) {
     await this.getUserById(id);
 
     const data: any = {};
@@ -146,6 +167,14 @@ export class UserService {
 
     for (const key in data) if (data[key] === undefined) delete data[key];
 
+    if (profileImage) {
+      const uploadResult = await this.cloudinaryService.uploadProfileImage(
+        profileImage.buffer,
+        `user-${id}-${Date.now()}-${profileImage.originalname}`,
+      );
+      data.profileImage = uploadResult.secure_url;
+    }
+
     if (dto.password) {
       data.password = await bcrypt.hash(dto.password, 10);
       data.passwordChangedAt = new Date();
@@ -164,6 +193,7 @@ export class UserService {
         role: true,
         accountType: true,
         companyName: true,
+        profileImage: true,
         isActive: true,
         updatedAt: true,
       },

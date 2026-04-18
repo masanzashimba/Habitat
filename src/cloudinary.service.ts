@@ -12,10 +12,59 @@ export class CloudinaryService {
     });
   }
 
-  async uploadImageBuffer(fileBuffer: Buffer, filename: string): Promise<{ secure_url: string }> {
+  async uploadImageBuffer(
+    fileBuffer: Buffer,
+    filename: string,
+  ): Promise<{ secure_url: string }> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         { folder: 'properties', public_id: filename.split('.')[0] },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result as { secure_url: string });
+        },
+      );
+      streamifier.createReadStream(fileBuffer).pipe(uploadStream);
+    });
+  }
+
+  async uploadProfileImage(
+    fileBuffer: Buffer,
+    filename: string,
+  ): Promise<{ secure_url: string }> {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'profiles',
+          public_id: filename.split('.')[0],
+          transformation: [
+            { width: 500, height: 500, crop: 'fill', gravity: 'face' },
+            { quality: 'auto' },
+          ],
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          resolve(result as { secure_url: string });
+        },
+      );
+      streamifier.createReadStream(fileBuffer).pipe(uploadStream);
+    });
+  }
+
+  async uploadTenantImage(
+    fileBuffer: Buffer,
+    filename: string,
+  ): Promise<{ secure_url: string }> {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'tenants',
+          public_id: filename.split('.')[0],
+          transformation: [
+            { width: 500, height: 500, crop: 'fill', gravity: 'face' },
+            { quality: 'auto' },
+          ],
+        },
         (error, result) => {
           if (error) return reject(error);
           resolve(result as { secure_url: string });

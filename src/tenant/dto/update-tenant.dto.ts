@@ -1,17 +1,13 @@
 import {
-  IsEmail,
   IsOptional,
   IsString,
   IsDateString,
-  IsDecimal,
   IsNumber,
+  IsBoolean,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class CreateTenantDto {
-  @IsEmail()
-  email: string;
-
+export class UpdateTenantDto {
   @IsOptional()
   @IsString()
   firstName?: string;
@@ -64,4 +60,8 @@ export class CreateTenantDto {
   @Type(() => Number)
   @IsNumber()
   monthlyIncome?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
