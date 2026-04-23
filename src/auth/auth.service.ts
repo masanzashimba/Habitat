@@ -32,7 +32,7 @@ export class AuthService {
       throw new ConflictException('Un utilisateur avec cet email existe déjà');
     }
 
-    const user = await this.userService.createUser(dto);
+    const user = await this.userService.createUser(dto, undefined);
     const { accessToken, refreshToken } = await this.generateTokenPair(
       user.id,
       user.email,
@@ -44,8 +44,6 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
         role: user.role,
       },
       accessToken,
@@ -59,15 +57,10 @@ export class AuthService {
       throw new UnauthorizedException('Email ou mot de passe invalide');
     }
 
-    await this.checkAccountLock(user.id);
-
     const passwordMatch = await bcrypt.compare(dto.password, user.password);
     if (!passwordMatch) {
-      await this.handleFailedLogin(user.id);
       throw new UnauthorizedException('Email ou mot de passe invalide');
     }
-
-    await this.resetFailedLoginAttempts(user.id);
 
     const { accessToken, refreshToken } = await this.generateTokenPair(
       user.id,
@@ -80,8 +73,6 @@ export class AuthService {
       user: {
         id: user.id,
         email: user.email,
-        firstName: user.firstName,
-        lastName: user.lastName,
         role: user.role,
       },
       accessToken,
@@ -127,11 +118,6 @@ export class AuthService {
 
       await this.userService.updateUser(payload.sub, { password: newPassword });
 
-      await this.prisma.user.update({
-        where: { id: payload.sub },
-        data: { passwordChangedAt: new Date() },
-      });
-
       await this.refreshTokenService.revokeAllUserTokens(payload.sub);
 
       return { message: 'Mot de passe réinitialisé avec succès' };
@@ -159,11 +145,6 @@ export class AuthService {
     }
 
     await this.userService.updateUser(userId, { password: newPassword });
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { passwordChangedAt: new Date() },
-    });
 
     await this.refreshTokenService.revokeAllUserTokens(userId);
 
@@ -237,29 +218,77 @@ export class AuthService {
 
   async getFullProfile(userId: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId, isDeleted: false },
+      where: { id: userId },
       select: {
         id: true,
-        email: true,
+
+        // =====================
+        // IDENTITÉ
+        // =====================
         firstName: true,
-        middleName: true,
         lastName: true,
+        email: true,
         phone: true,
         profileImage: true,
         coverImage: true,
+        bio: true,
+        gender: true,
+        birthDate: true,
+
+        // =====================
+        // COMPTE
+        // =====================
         role: true,
-        accountType: true,
-        companyName: true,
-        businessId: true,
-        address: true,
-        city: true,
         isActive: true,
         isEmailVerified: true,
         isPhoneVerified: true,
-        passwordChangedAt: true,
         lastLoginAt: true,
+
+        // =====================
+        // ADRESSE
+        // =====================
+        country: true,
+        city: true,
+        address: true,
+        latitude: true,
+        longitude: true,
+
+        // =====================
+        // BUSINESS
+        // =====================
+        companyName: true,
+        companyId: true,
+
+        // =====================
+        // SECURITÉ
+        // =====================
+        passwordChangedAt: true,
+        failedLoginAttempts: true,
+        lockedUntil: true,
+
+        // =====================
+        // META
+        // =====================
         createdAt: true,
         updatedAt: true,
+
+        // =====================
+        // STATISTIQUES
+        // =====================
+        _count: {
+          select: {
+            properties: true,
+            bookings: true,
+            ownedTenants: true,
+            reviews: true,
+            favorites: true,
+            notifications: {
+              where: {
+                isRead: false,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -267,76 +296,6 @@ export class AuthService {
       throw new UnauthorizedException('Utilisateur non trouvé');
     }
 
-    // Mettre à jour la dernière activité
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { lastLoginAt: new Date() },
-    });
-
     return user;
-  }
-
-  private async checkAccountLock(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { lockedUntil: true },
-    });
-
-    if (user?.lockedUntil && user.lockedUntil > new Date()) {
-      const remainingMinutes = Math.ceil(
-        (user.lockedUntil.getTime() - Date.now()) / (1000 * 60),
-      );
-      throw new UnauthorizedException(
-        `Compte verrouillé. Réessayez dans ${remainingMinutes} minute(s)`,
-      );
-    }
-  }
-
-  private async handleFailedLogin(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { failedLoginAttempts: true },
-    });
-
-    const attempts = (user?.failedLoginAttempts || 0) + 1;
-    const remainingAttempts = AUTH_CONSTANTS.MAX_LOGIN_ATTEMPTS - attempts;
-
-    if (attempts >= AUTH_CONSTANTS.MAX_LOGIN_ATTEMPTS) {
-      const lockUntil = new Date();
-      lockUntil.setMinutes(
-        lockUntil.getMinutes() + AUTH_CONSTANTS.LOCK_DURATION_MINUTES,
-      );
-
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: {
-          failedLoginAttempts: attempts,
-          lockedUntil: lockUntil,
-        },
-      });
-
-      throw new UnauthorizedException(
-        `Compte verrouillé pour ${AUTH_CONSTANTS.LOCK_DURATION_MINUTES} minutes après ${AUTH_CONSTANTS.MAX_LOGIN_ATTEMPTS} tentatives échouées`,
-      );
-    } else {
-      await this.prisma.user.update({
-        where: { id: userId },
-        data: { failedLoginAttempts: attempts },
-      });
-
-      throw new UnauthorizedException(
-        `Email ou mot de passe invalide. ${remainingAttempts} tentative(s) restante(s)`,
-      );
-    }
-  }
-
-  private async resetFailedLoginAttempts(userId: string) {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        failedLoginAttempts: 0,
-        lockedUntil: null,
-      },
-    });
   }
 }

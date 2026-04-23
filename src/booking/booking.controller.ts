@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Patch,
+  Put,
   Param,
   Delete,
   UseGuards,
@@ -14,6 +15,7 @@ import { CreateBookingDto } from './dto/create-booking.dto';
 import { UpdateBookingDto } from './dto/update-booking.dto';
 import { JwtAccessGuard } from '../auth/guards/jwt-access.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { BookingStatus } from '@prisma/client';
 
 @Controller('bookings')
 @UseGuards(JwtAccessGuard)
@@ -29,8 +31,11 @@ export class BookingController {
   }
 
   @Get()
-  findAll(@CurrentUser('userId') userId: string) {
-    return this.bookingService.findAll(userId);
+  findAll(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.bookingService.findAll(userId, userRole);
   }
 
   @Get('my-bookings')
@@ -39,8 +44,26 @@ export class BookingController {
   }
 
   @Get('property/:propertyId')
-  findByProperty(@Param('propertyId') propertyId: string) {
-    return this.bookingService.findByProperty(propertyId);
+  findByProperty(
+    @Param('propertyId') propertyId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.bookingService.findByProperty(propertyId, userId, userRole);
+  }
+
+  @Get('user/:userId')
+  findByUser(@Param('userId') userId: string) {
+    return this.bookingService.findByUser(userId);
+  }
+
+  @Get('tenant/:tenantId')
+  findByTenant(
+    @Param('tenantId') tenantId: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.bookingService.findByTenant(tenantId, userId, userRole);
   }
 
   @Get('relations/owners')
@@ -57,21 +80,49 @@ export class BookingController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string, @CurrentUser('userId') userId: string) {
-    return this.bookingService.findOne(id, userId);
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.bookingService.findOne(id, userId, userRole);
   }
 
-  @Patch(':id')
+  @Put(':id')
   update(
     @Param('id') id: string,
     @Body() updateBookingDto: UpdateBookingDto,
     @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
   ) {
-    return this.bookingService.update(id, updateBookingDto, userId);
+    return this.bookingService.update(id, updateBookingDto, userId, userRole);
+  }
+
+  @Put(':id/validate')
+  validateBooking(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+    @Body('status') status: BookingStatus,
+  ) {
+    return this.bookingService.validateBooking(id, userId, userRole, status);
+  }
+
+  @Put(':id/cancel')
+  cancelBooking(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.bookingService.cancelBooking(id, userId, userRole);
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string, @CurrentUser('userId') userId: string) {
-    return this.bookingService.remove(id, userId);
+  remove(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.bookingService.remove(id, userId, userRole);
   }
 }

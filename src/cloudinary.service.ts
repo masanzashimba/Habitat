@@ -73,4 +73,38 @@ export class CloudinaryService {
       streamifier.createReadStream(fileBuffer).pipe(uploadStream);
     });
   }
+
+  async uploadFile(
+    fileBuffer: Buffer,
+    filename: string,
+    folder: string = 'documents',
+  ): Promise<{ secure_url: string; public_id: string }> {
+    return new Promise((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder,
+          public_id: filename.split('.')[0],
+          resource_type: 'auto', // Allows any file type
+        },
+        (error, result) => {
+          if (error) return reject(error);
+          if (!result) return reject(new Error('Upload failed'));
+          resolve({
+            secure_url: result.secure_url,
+            public_id: result.public_id,
+          });
+        },
+      );
+      streamifier.createReadStream(fileBuffer).pipe(uploadStream);
+    });
+  }
+
+  async deleteFile(publicId: string): Promise<void> {
+    try {
+      await cloudinary.uploader.destroy(publicId);
+    } catch (error) {
+      console.error('Error deleting file from Cloudinary:', error);
+      throw error;
+    }
+  }
 }

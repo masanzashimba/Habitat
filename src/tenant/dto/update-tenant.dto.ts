@@ -5,7 +5,6 @@ import {
   IsNumber,
   IsBoolean,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class UpdateTenantDto {
   @IsOptional()
@@ -19,10 +18,6 @@ export class UpdateTenantDto {
   @IsOptional()
   @IsString()
   phone?: string;
-
-  @IsOptional()
-  @IsString()
-  profileImage?: string;
 
   @IsOptional()
   @IsDateString()
@@ -57,7 +52,6 @@ export class UpdateTenantDto {
   employer?: string;
 
   @IsOptional()
-  @Type(() => Number)
   @IsNumber()
   monthlyIncome?: number;
 

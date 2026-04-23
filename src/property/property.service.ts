@@ -280,7 +280,7 @@ export class PropertyService {
   // =============================
   async updateStatus(
     id: string,
-    status: 'available' | 'rented' | 'sold',
+    status: 'available' | 'reserved' | 'rented',
     userId: string,
   ) {
     await this.checkOwnership(id, userId);

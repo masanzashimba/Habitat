@@ -1,5 +1,12 @@
-import { IsString, IsNumber, IsOptional, IsDate } from 'class-validator';
-import { Currency } from 'generated/prisma';
+import {
+  IsString,
+  IsNumber,
+  IsOptional,
+  IsDateString,
+  IsEnum,
+} from 'class-validator';
+import { Type } from 'class-transformer';
+import { Currency } from '@prisma/client';
 
 export class AssignTenantDto {
   @IsString()
@@ -8,20 +15,23 @@ export class AssignTenantDto {
   @IsString()
   propertyId: string;
 
+  @Type(() => Number)
   @IsNumber()
   rentAmount: number;
 
   @IsOptional()
+  @IsEnum(Currency)
   currency?: Currency;
 
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   deposit?: number;
 
-  @IsDate()
-  startDate: Date;
+  @IsDateString()
+  startDate: string;
 
   @IsOptional()
-  @IsDate()
-  endDate?: Date;
+  @IsDateString()
+  endDate?: string;
 }

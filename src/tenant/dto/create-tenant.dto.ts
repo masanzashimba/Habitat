@@ -3,10 +3,8 @@ import {
   IsOptional,
   IsString,
   IsDateString,
-  IsDecimal,
   IsNumber,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 
 export class CreateTenantDto {
   @IsEmail()
@@ -23,10 +21,6 @@ export class CreateTenantDto {
   @IsOptional()
   @IsString()
   phone?: string;
-
-  @IsOptional()
-  @IsString()
-  profileImage?: string;
 
   @IsOptional()
   @IsDateString()
@@ -61,7 +55,6 @@ export class CreateTenantDto {
   employer?: string;
 
   @IsOptional()
-  @Type(() => Number)
   @IsNumber()
   monthlyIncome?: number;
 }

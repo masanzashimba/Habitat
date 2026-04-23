@@ -4,23 +4,113 @@ import {
   IsString,
   IsEnum,
   IsBoolean,
+  IsDateString,
+  IsNumber,
+  MinLength,
+  Matches,
 } from 'class-validator';
-import { Role } from 'generated/prisma';
+import { Role } from '@prisma/client';
 
 export class CreateUserDto {
-  @IsOptional() @IsString() firstName?: string;
-  @IsOptional() @IsString() middleName?: string;
-  @IsOptional() @IsString() lastName?: string;
-  @IsEmail() email: string;
-  @IsOptional() @IsString() phone?: string;
-  @IsString() password: string;
-  @IsOptional() @IsString() profileImage?: string;
-  @IsOptional() @IsString() coverImage?: string;
-  @IsOptional() @IsEnum(Role) role?: Role;
-  @IsOptional() @IsString() accountType?: string;
-  @IsOptional() @IsString() companyName?: string;
-  @IsOptional() @IsString() businessId?: string;
-  @IsOptional() @IsString() address?: string;
-  @IsOptional() @IsString() city?: string;
-  @IsOptional() @IsBoolean() isActive?: boolean;
+  @IsEmail({}, { message: 'Email invalide' })
+  email: string;
+
+  @IsOptional()
+  @IsString({ message: 'Le téléphone doit être une chaîne de caractères' })
+  @Matches(/^\+?[1-9]\d{1,14}$/, { message: 'Format de téléphone invalide' })
+  phone?: string;
+
+  @IsString({ message: 'Le mot de passe est requis' })
+  @MinLength(8, {
+    message: 'Le mot de passe doit contenir au moins 8 caractères',
+  })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message:
+      'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre',
+  })
+  password: string;
+
+  @IsOptional()
+  @IsEnum(Role, { message: 'Rôle invalide' })
+  role?: Role;
+
+  @IsOptional()
+  @IsBoolean({ message: 'isActive doit être un booléen' })
+  isActive?: boolean;
+
+  // =====================
+  // IDENTITÉ
+  // =====================
+  @IsOptional()
+  @IsString({ message: 'Le prénom doit être une chaîne de caractères' })
+  firstName?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Le nom doit être une chaîne de caractères' })
+  lastName?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La bio doit être une chaîne de caractères' })
+  bio?: string;
+
+  @IsOptional()
+  @IsString({ message: 'Le genre doit être une chaîne de caractères' })
+  gender?: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: 'Format de date de naissance invalide' })
+  birthDate?: string;
+
+  // =====================
+  // ADRESSE
+  // =====================
+  @IsOptional()
+  @IsString({ message: 'Le pays doit être une chaîne de caractères' })
+  country?: string;
+
+  @IsOptional()
+  @IsString({ message: 'La ville doit être une chaîne de caractères' })
+  city?: string;
+
+  @IsOptional()
+  @IsString({ message: "L'adresse doit être une chaîne de caractères" })
+  address?: string;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'La latitude doit être un nombre' })
+  latitude?: number;
+
+  @IsOptional()
+  @IsNumber({}, { message: 'La longitude doit être un nombre' })
+  longitude?: number;
+
+  // =====================
+  // BUSINESS
+  // =====================
+  @IsOptional()
+  @IsString({
+    message: "Le nom de l'entreprise doit être une chaîne de caractères",
+  })
+  companyName?: string;
+
+  @IsOptional()
+  @IsString({
+    message: "L'ID de l'entreprise doit être une chaîne de caractères",
+  })
+  companyId?: string;
+}
+
+export class ChangePasswordDto {
+  @IsString({ message: 'Le mot de passe actuel est requis' })
+  currentPassword: string;
+
+  @IsString({ message: 'Le nouveau mot de passe est requis' })
+  @MinLength(8, {
+    message: 'Le mot de passe doit contenir au moins 8 caractères',
+  })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, {
+    message:
+      'Le mot de passe doit contenir au moins une minuscule, une majuscule et un chiffre',
+  })
+  newPassword: string;
 }

@@ -62,6 +62,15 @@ export class PropertyController {
   }
 
   // =============================
+  // GET OWNER PROPERTIES (alias for my-properties)
+  // =============================
+  @UseGuards(JwtAccessGuard)
+  @Get('owner')
+  getOwnerProperties(@CurrentUser('userId') userId: string) {
+    return this.propertyService.findUserProperties(userId, true);
+  }
+
+  // =============================
   // FAVORITES
   // =============================
   @UseGuards(JwtAccessGuard)
@@ -118,7 +127,7 @@ export class PropertyController {
   @Patch(':id/status')
   updateStatus(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('status') status: 'available' | 'rented' | 'sold',
+    @Body('status') status: 'available' | 'reserved' | 'rented',
     @CurrentUser('userId') userId: string,
   ) {
     return this.propertyService.updateStatus(id, status, userId);

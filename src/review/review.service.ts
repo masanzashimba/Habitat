@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
-import { PrismaService } from 'src/prisma.service';
+import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class ReviewService {
@@ -63,9 +63,8 @@ export class ReviewService {
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
             email: true,
+            phone: true,
           },
         },
       },
@@ -96,9 +95,8 @@ export class ReviewService {
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
             email: true,
+            phone: true,
           },
         },
       },
@@ -123,9 +121,8 @@ export class ReviewService {
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
             email: true,
+            phone: true,
           },
         },
       },
@@ -176,9 +173,8 @@ export class ReviewService {
         user: {
           select: {
             id: true,
-            firstName: true,
-            lastName: true,
             email: true,
+            phone: true,
           },
         },
       },

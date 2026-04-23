@@ -1,6 +1,5 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -9,321 +8,442 @@ datasource db {
 }
 
 // =============================
-//        USER MODEL
+//        USER
 // =============================
 model User {
-  id                     String      @id @default(uuid())
-  firstName              String?     @map("first_name")
-  middleName             String?     @map("middle_name")
-  lastName               String?     @map("last_name")
-  email                  String      @unique
-  phone                  String?     @unique
-  password               String
-  profileImage           String?     @map("profile_image")
-  coverImage             String?     @map("cover_image")
-
-  role                   Role        @default(owner)
-  accountType            String?     @map("account_type")
-  companyName            String?     @map("company_name")
-  businessId             String?     @map("business_id")
-
-  address                String?
-  city                   String?     @default("Kinshasa")
-
-  isDeleted              Boolean     @default(false)
-  isActive               Boolean     @default(true)
-  isEmailVerified        Boolean     @default(false)
-  isPhoneVerified        Boolean     @default(false)
-
-  passwordChangedAt      DateTime?
-  lastLoginAt            DateTime?
-
-  lockedUntil            DateTime?
-  failedLoginAttempts    Int?        @default(0)
-
-  createdAt              DateTime    @default(now())
-  updatedAt              DateTime    @updatedAt
-
-  // Relations
-  properties             Property[]
-  bookings               Booking[]
-  reviews                Review[]
-  favorites              Favorite[]
-  refreshTokens          RefreshToken[]
-
-  ownedTenants           Tenant[]    @relation("OwnerTenants")
-  tenantProfile          Tenant?     @relation("TenantUser")
-
-  leasesAsOwner          Lease[]     @relation("OwnerLeases")
-  notifications          Notification[]
-
-  @@map("users")
+  id        String  @id @default(uuid())
+  
+  // =====================
+  // IDENTITÉ
+  // =====================
+  firstName String?
+  lastName  String?
+  email     String  @unique
+  phone     String? @unique
+  profileImage String?
+  coverImage   String?
+  bio       String?   // petite description utilisateur
+  gender    String?   // M / F / autre (ou enum si tu veux)
+  birthDate DateTime?
+  
+  // =====================
+  // COMPTE
+  // =====================
+  password  String
+  role      Role    @default(owner)
+  isActive  Boolean @default(true)
+  isEmailVerified Boolean @default(false)
+  isPhoneVerified Boolean @default(false)
+  lastLoginAt DateTime?
+  
+  // =====================
+  // ADRESSE (utile pour immobilier)
+  // =====================
+  country  String? @default("DRC")
+  city     String? @default("Kinshasa")
+  address  String?
+  latitude Float?
+  longitude Float?
+  
+  // =====================
+  // BUSINESS (propriétaires / agences)
+  // =====================
+  companyName String?
+  companyId   String? // numéro fiscal / registre commerce
+  
+  // =====================
+  // SECURITÉ
+  // =====================
+  passwordChangedAt DateTime?
+  failedLoginAttempts Int @default(0)
+  lockedUntil DateTime?
+  
+  // =====================
+  // RELATIONS
+  // =====================
+  properties Property[]
+  bookings   Booking[]
+  notifications Notification[]
+  ownedTenants  Tenant[] @relation("OwnerTenants")
+  tenantProfile Tenant?  @relation("TenantUser")
+  leasesAsOwner Lease[] @relation("OwnerLeases")
+  validatedBookings Booking[] @relation("BookingValidator")
+  createdContracts Contract[] @relation("ContractCreator")
+  contractUser     Contract[] @relation("ContractUser")
+  adminLogs AdminActionLog[]
+  reviews   Review[]
+  favorites Favorite[]
+  refreshTokens RefreshToken[]
+  
+  // =====================
+  // META
+  // =====================
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([email])
+  @@index([phone])
+  @@index([role])
+  @@index([city])
 }
 
 // =============================
-//        TENANT MODEL
+//        TENANT
 // =============================
 model Tenant {
-  id              String   @id @default(uuid())
-  email           String?
-  phone           String?
-  firstName       String?
-  lastName        String?
-  profileImage    String?  // Photo de profil du locataire
+  id        String  @id @default(uuid())
+  firstName String?
+  lastName  String?
+  email     String?
+  phone     String?
   
-  // Informations supplémentaires pour la gestion
+  // Informations personnelles
+  profileImage    String?
   dateOfBirth     DateTime?
-  nationalId      String?   // Numéro de carte d'identité
-  address         String?   // Adresse actuelle du locataire
+  nationalId      String?
+  address         String?
   city            String?
-  emergencyContact String?  // Contact d'urgence
-  emergencyPhone   String?  // Téléphone d'urgence
-  occupation      String?   // Profession
-  employer        String?   // Employeur
-  monthlyIncome   Decimal?  @db.Decimal(12,2) // Revenu mensuel
+  emergencyContact String?
+  emergencyPhone  String?
+  
+  // Informations professionnelles
+  occupation      String?
+  employer        String?
+  monthlyIncome   Float?
+  
+  // Statut
+  isActive Boolean @default(true)
 
-  ownerId    String
-  owner      User     @relation("OwnerTenants", fields: [ownerId], references: [id])
+  ownerId String
+  owner   User   @relation("OwnerTenants", fields: [ownerId], references: [id])
 
-  userId     String?  @unique
-  user       User?    @relation("TenantUser", fields: [userId], references: [id])
+  userId String? @unique
+  user   User?   @relation("TenantUser", fields: [userId], references: [id])
 
-  leases     Lease[]
-  isActive   Boolean  @default(true)
+  bookings Booking[] @relation("TenantBookings")
+  leases   Lease[]
 
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([email])
-  @@map("tenants")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // =============================
-//        PROPERTY MODEL
+//        PROPERTY
 // =============================
 model Property {
-  id               String          @id @default(uuid())
-  userId           String
-  addressId        String
+  id      String @id @default(uuid())
+  userId  String // Changed from ownerId to userId to match service
+  slug    String @unique
 
   title            String
-  slug             String
-
   shortDescription String?
   description      String?
+  propertyType     PropertyType @default(APARTMENT)
+  price            Decimal      @db.Decimal(12, 2)
+  priceUnit        PriceUnit    @default(PER_MONTH)
+  currency         Currency     @default(CDF)
 
-  propertyType     PropertyType
+  status  PropertyStatus  @default(available)
+  purpose PropertyPurpose @default(A_LOUER)
 
-  price            Decimal         @db.Decimal(12, 2)
-  currency         Currency        @default(USD)
+  maxGuests   Int?
+  bedrooms    Int?
+  beds        Int?
+  bathrooms   Int?
+  kitchens    Int?
+  livingRooms Int?
+  otherRooms  String?
 
-  status           PropertyStatus  @default(available)
-  purpose          PropertyPurpose @default(A_LOUER)
+  securityDepositMonths Int? // Nombre de mois de garantie
+  commissionMonths      Int? // Nombre de mois de commission
 
-  // ✅ AJOUTE CES CHAMPS
-  maxGuests        Int?
-  bedrooms         Int?
-  beds             Int?
-  bathrooms        Int?
-  kitchens         Int?
-  livingRooms      Int?
-  otherRooms       String?
+  isFeatured  Boolean @default(false)
+  isVerified  Boolean @default(false)
+  discount    Int?
+  paymentType String?
+  specialNotes String?
 
-  isFeatured       Boolean @default(false)
-  isVerified       Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  discount         Decimal? @db.Decimal(5,2)
-  paymentType      String?
-  specialNotes     String?
+  user           User             @relation(fields: [userId], references: [id])
+  bookings       Booking[]
+  leases         Lease[]
+  TemporaryBlock TemporaryBlock[]
+  
+  images    PropertyImage[]
+  address   PropertyAddress?
+  amenities PropertyAmenity[]
+  reviews   Review[]
+  favorites Favorite[]
 
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-
-  user             User            @relation(fields: [userId], references: [id])
-  address          Address         @relation(fields: [addressId], references: [id])
-
-  images           PropertyImage[]
-  bookings         Booking[]
-  reviews          Review[]
-  favorites        Favorite[]
-  amenities        PropertyAmenity[]
-  leases           Lease[]
-  priceUnit        PriceUnit       @default(MONTH)
-  @@map("properties")
+  @@index([status])
+  @@index([userId])
+  @@index([slug])
 }
 
 // =============================
-//        PROPERTY IMAGE MODEL
+//        PROPERTY IMAGE
 // =============================
 model PropertyImage {
-  id         String   @id @default(uuid())
+  id         String  @id @default(uuid())
   propertyId String
   imageUrl   String
-  isPrimary  Boolean  @default(false)
-  createdAt  DateTime @default(now())
+  isPrimary  Boolean @default(false)
 
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  @@map("property_images")
+  @@index([propertyId])
 }
 
 // =============================
-//        LEASE MODEL
+//        PROPERTY ADDRESS
 // =============================
-model Lease {
-  id           String      @id @default(uuid())
+model PropertyAddress {
+  id         String @id @default(uuid())
+  propertyId String @unique
 
-  propertyId   String
-  tenantId     String
-  ownerId      String
+  commune   String
+  quartier  String
+  avenue    String
+  number    String?
+  city      String?
+  province  String?
+  latitude  Float?
+  longitude Float?
 
-  startDate    DateTime
-  endDate      DateTime?
-
-  rentAmount   Decimal     @db.Decimal(12,2)
-  currency     Currency    @default(USD)
-  deposit      Decimal?    @db.Decimal(12,2)
-
-  status       LeaseStatus @default(active)
-  isActive     Boolean     @default(true)
-
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-
-  property     Property    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  tenant       Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  owner        User        @relation("OwnerLeases", fields: [ownerId], references: [id], onDelete: Cascade)
-
-  @@map("leases")
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 }
 
 // =============================
-//        ADDRESS MODEL
+//        AMENITY
 // =============================
-model Address {
-  id         String    @id @default(uuid())
-  commune    String
-  quartier   String
-  avenue     String
-  number     String?
-  city       String    @default("Kinshasa")
-  province   String    @default("Kinshasa")
-  latitude   Decimal?  @db.Decimal(10, 8)
-  longitude  Decimal?  @db.Decimal(11, 8)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+model Amenity {
+  id   String @id @default(uuid())
+  name String @unique
 
-  properties Property[]
+  properties PropertyAmenity[]
 
-  @@map("addresses")
+  @@index([name])
 }
 
 // =============================
-//        BOOKING MODEL
+//        PROPERTY AMENITY
 // =============================
-model Booking {
-  id           String        @id @default(uuid())
-  propertyId   String
-  userId       String
-  startDate    DateTime
-  endDate      DateTime
-  status       BookingStatus @default(pending)
-  totalAmount  Decimal       @db.Decimal(12, 2)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+model PropertyAmenity {
+  id         String @id @default(uuid())
+  propertyId String
+  amenityId  String
 
-  property     Property      @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  amenity  Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
 
-  @@map("bookings")
+  @@unique([propertyId, amenityId])
 }
 
 // =============================
-//        REVIEW MODEL
+//        REVIEW
 // =============================
 model Review {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   propertyId String
   userId     String
   rating     Int
   comment    String?
-  createdAt  DateTime @default(now())
 
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  @@map("reviews")
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@unique([propertyId, userId])
+  @@index([propertyId])
 }
 
 // =============================
-//        FAVORITE MODEL
+//        FAVORITE
 // =============================
 model Favorite {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
+  propertyId String
   userId     String
-  propertyId String
-  createdAt  DateTime @default(now())
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
 
-  @@map("favorites")
-}
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id])
 
-// =============================
-//        REFRESH TOKEN MODEL
-// =============================
-model RefreshToken {
-  id           String   @id @default(uuid())
-  userId       String
-  token        String   @unique
-  expiresAt    DateTime
-  isRevoked    Boolean  @default(false)
-  replacedBy   String?
-  userAgent    String?
-  ipAddress    String?
-  createdAt    DateTime @default(now())
-  revokedAt    DateTime?
-
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  @@unique([propertyId, userId])
   @@index([userId])
-  @@index([token])
-  @@map("refresh_tokens")
 }
 
 // =============================
-//        AMENITY MODEL
+//        BOOKING
 // =============================
-model Amenity {
-  id         String          @id @default(uuid())
-  name       String          @unique
-  properties PropertyAmenity[]
+model Booking {
+  id String @id @default(uuid())
+
+  propertyId String
+  userId     String?
+  tenantId   String?
+
+  startDate DateTime
+  endDate   DateTime
+  nights    Int
+
+  status BookingStatus @default(pending)
+
+  totalAmount Decimal @db.Decimal(12, 2)
+
+  validatedById String?
+  validatedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+
+  user   User?   @relation(fields: [userId], references: [id])
+  tenant Tenant? @relation("TenantBookings", fields: [tenantId], references: [id])
+
+  validatedBy User? @relation("BookingValidator", fields: [validatedById], references: [id])
+
+  lease Lease?
+
+  @@unique([propertyId, startDate, endDate])
+  @@index([propertyId, status])
 }
 
-model PropertyAmenity {
+// =============================
+//        TEMP BLOCK
+// =============================
+model TemporaryBlock {
   id         String   @id @default(uuid())
   propertyId String
-  amenityId  String
+  startDate  DateTime
+  endDate    DateTime
+  sessionId  String
+  expiresAt  DateTime
 
-  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  amenity    Amenity  @relation(fields: [amenityId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id])
+
+  @@index([propertyId, startDate, endDate])
+  @@index([expiresAt])
 }
 
 // =============================
-//        NOTIFICATION MODEL
+//        LEASE
+// =============================
+model Lease {
+  id String @id @default(uuid())
+
+  bookingId String? @unique
+
+  propertyId String
+  tenantId   String
+  ownerId    String
+
+  startDate DateTime
+  endDate   DateTime?
+
+  rentAmount Decimal  @db.Decimal(12, 2)
+  currency   Currency @default(USD)
+  deposit    Decimal? @db.Decimal(12, 2)
+
+  status LeaseStatus @default(active)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  booking  Booking? @relation(fields: [bookingId], references: [id])
+  property Property @relation(fields: [propertyId], references: [id])
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  owner    User     @relation("OwnerLeases", fields: [ownerId], references: [id])
+
+  contract Contract?
+}
+
+// =============================
+//        CONTRACT
+// =============================
+model Contract {
+  id      String @id @default(uuid())
+  leaseId String @unique
+  fileUrl String
+
+  createdBy String
+  userId    String?
+
+  signedAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  creator User  @relation("ContractCreator", fields: [createdBy], references: [id])
+  user    User? @relation("ContractUser", fields: [userId], references: [id])
+}
+
+// =============================
+//        NOTIFICATION
 // =============================
 model Notification {
-  id        String   @id @default(uuid())
-  userId    String
-  title     String
-  message   String
+  id     String @id @default(uuid())
+  userId String
+
+  title   String
+  message String
+  type    String?
+  data    Json?
+
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  user      User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
-  @@map("notifications")
+  @@index([userId, isRead])
+}
+
+// =============================
+//        ADMIN LOG
+// =============================
+model AdminActionLog {
+  id      String @id @default(uuid())
+  adminId String
+
+  action      String
+  entityType  String
+  entityId    String
+  description String?
+
+  createdAt DateTime @default(now())
+
+  admin User @relation(fields: [adminId], references: [id])
+
+  @@index([adminId])
+}
+
+// =============================
+//        REFRESH TOKEN
+// =============================
+model RefreshToken {
+  id         String   @id @default(uuid())
+  token      String   @unique
+  userId     String
+  userAgent  String?
+  ipAddress  String?
+  expiresAt  DateTime
+  isRevoked  Boolean  @default(false)
+  revokedAt  DateTime?
+  replacedBy String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
 }
 
 // =============================
@@ -336,49 +456,39 @@ enum Role {
 }
 
 enum PropertyType {
-  house
-  apartment
-  studio
-  room
-  villa
-  duplex
-  penthouse
-  bungalow
-  chalet
-  residence
-  loft
-  co_living
-  office
-  shop
-  warehouse
-  land
-  guest_house
-  hotel_room
-  airbnb
-}
-
-enum Currency {
-  USD
-  CDF
-  EUR
-  GBP
+  APARTMENT
+  HOUSE
+  STUDIO
+  VILLA
+  OFFICE
+  SHOP
+  WAREHOUSE
+  LAND
 }
 
 enum PropertyStatus {
   available
+  reserved
   rented
-  sold
 }
 
 enum PropertyPurpose {
   A_LOUER
   A_VENDRE
-  SEJOUR_LIMITE
+}
+
+enum PriceUnit {
+  PER_NIGHT
+  PER_WEEK
+  PER_MONTH
+  PER_YEAR
+  TOTAL
 }
 
 enum BookingStatus {
   pending
   confirmed
+  rejected
   cancelled
 }
 
@@ -387,8 +497,9 @@ enum LeaseStatus {
   terminated
   expired
 }
-enum PriceUnit {
-  DAY
-  MONTH
-  YEAR
+
+enum Currency {
+  USD
+  CDF
+  EUR
 }

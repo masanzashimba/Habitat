@@ -17,6 +17,7 @@ import { ReviewService } from './review.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { JwtAccessGuard } from 'src/auth/guards/jwt-access.guard';
+import { Public } from 'src/auth/decorators/public.decorator';
 
 @Controller('properties/:propertyId/reviews')
 export class ReviewController {
@@ -42,6 +43,7 @@ export class ReviewController {
    * Récupérer tous les avis d'une propriété
    * GET /properties/:propertyId/reviews
    */
+  @Public()
   @Get()
   @HttpCode(HttpStatus.OK)
   async findAll(@Param('propertyId') propertyId: string) {
@@ -52,6 +54,7 @@ export class ReviewController {
    * Récupérer un avis spécifique
    * GET /properties/:propertyId/reviews/:reviewId
    */
+  @Public()
   @Get(':reviewId')
   @HttpCode(HttpStatus.OK)
   async findOne(
@@ -75,7 +78,12 @@ export class ReviewController {
     @Request() req,
   ) {
     const userId = req.user.userId;
-    return this.reviewService.update(reviewId, propertyId, userId, updateReviewDto);
+    return this.reviewService.update(
+      reviewId,
+      propertyId,
+      userId,
+      updateReviewDto,
+    );
   }
 
   /**
@@ -98,6 +106,7 @@ export class ReviewController {
    * Récupérer les statistiques des avis d'une propriété
    * GET /properties/:propertyId/reviews/stats
    */
+  @Public()
   @Get('stats')
   @HttpCode(HttpStatus.OK)
   async getStats(@Param('propertyId') propertyId: string) {

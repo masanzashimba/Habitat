@@ -12,7 +12,10 @@ export interface JwtPayload {
 }
 
 @Injectable()
-export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') {
+export class JwtAccessStrategy extends PassportStrategy(
+  Strategy,
+  'jwt-access',
+) {
   constructor(
     private configService: ConfigService,
     private prisma: PrismaService,
@@ -36,9 +39,8 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') 
         id: true,
         email: true,
         role: true,
-        firstName: true,
-        lastName: true,
-        passwordChangedAt: true,
+        phone: true,
+        isActive: true,
       },
     });
 
@@ -46,23 +48,15 @@ export class JwtAccessStrategy extends PassportStrategy(Strategy, 'jwt-access') 
       throw new UnauthorizedException('Utilisateur non trouvé');
     }
 
-    if (user.passwordChangedAt && payload.iat) {
-      const passwordChangedTimestamp = Math.floor(
-        user.passwordChangedAt.getTime() / 1000,
-      );
-      if (payload.iat < passwordChangedTimestamp) {
-        throw new UnauthorizedException(
-          'Mot de passe modifié récemment. Veuillez vous reconnecter',
-        );
-      }
+    if (!user.isActive) {
+      throw new UnauthorizedException('Compte désactivé');
     }
 
     return {
       userId: user.id,
       email: user.email,
       role: user.role,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      phone: user.phone,
     };
   }
 }

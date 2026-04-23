@@ -17,7 +17,7 @@ import {
   PropertyStatus,
   PropertyPurpose,
   PriceUnit,
-} from 'generated/prisma';
+} from '@prisma/client';
 import { CreateAddressDto } from './CreateAddressDto';
 
 export class CreatePropertyDto {
@@ -90,6 +90,16 @@ export class CreatePropertyDto {
   @IsString()
   @IsOptional()
   otherRooms?: string;
+
+  @IsInt()
+  @IsOptional()
+  @Min(0)
+  securityDepositMonths?: number;
+
+  @IsInt()
+  @IsOptional()
+  @Min(0)
+  commissionMonths?: number;
 
   @IsBoolean()
   @IsOptional()
