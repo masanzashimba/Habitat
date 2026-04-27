@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Put,
+  Patch,
   Param,
   Delete,
   UseGuards,
@@ -42,16 +43,12 @@ export class NotificationController {
     return this.notificationService.getUnreadCount(userId);
   }
 
-  @Get(':id')
-  findOne(
-    @Param('id') id: string,
-    @CurrentUser('userId') userId: string,
-    @CurrentUser('role') userRole: string,
-  ) {
-    return this.notificationService.findOne(id, userId, userRole);
+  @Patch('read-all')
+  markAllAsRead(@CurrentUser('userId') userId: string) {
+    return this.notificationService.markAllAsRead(userId);
   }
 
-  @Put(':id/read')
+  @Patch(':id/read')
   markAsRead(
     @Param('id') id: string,
     @CurrentUser('userId') userId: string,
@@ -60,9 +57,13 @@ export class NotificationController {
     return this.notificationService.markAsRead(id, userId, userRole);
   }
 
-  @Put('read-all')
-  markAllAsRead(@CurrentUser('userId') userId: string) {
-    return this.notificationService.markAllAsRead(userId);
+  @Get(':id')
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.notificationService.findOne(id, userId, userRole);
   }
 
   @Put(':id')

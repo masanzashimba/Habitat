@@ -229,12 +229,48 @@ export class NotificationService {
       cancelled: `La réservation pour "${propertyTitle}" a été annulée.`,
     };
 
+    // Récupérer les informations de l'utilisateur qui a fait la réservation
+    let userInfo: {
+      id: string;
+      firstName: string | null;
+      lastName: string | null;
+      profileImage: string | null;
+      email: string;
+    } | null = null;
+
+    if (additionalData?.tenantUserId) {
+      const tenantUser = await this.prisma.user.findUnique({
+        where: { id: additionalData.tenantUserId },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          profileImage: true,
+          email: true,
+        },
+      });
+      if (tenantUser) {
+        userInfo = {
+          id: tenantUser.id,
+          firstName: tenantUser.firstName,
+          lastName: tenantUser.lastName,
+          profileImage: tenantUser.profileImage,
+          email: tenantUser.email,
+        };
+      }
+    }
+
     return this.create({
       userId,
       title: titles[type],
       message: messages[type],
       type: `booking_${type}`,
-      data: { bookingId, propertyTitle, ...additionalData },
+      data: {
+        bookingId,
+        propertyTitle,
+        userInfo, // Ajouter les infos de l'utilisateur
+        ...additionalData,
+      },
     });
   }
 
@@ -295,5 +331,57 @@ export class NotificationService {
       type: `lease_${type}`,
       data: { leaseId, propertyTitle },
     });
+  }
+
+  // Helper method to notify owner when they create a property
+  async createPropertyCreatedNotification(
+    userId: string,
+    propertyId: string,
+    propertyTitle: string,
+    propertyType: string,
+  ) {
+    return this.create({
+      userId,
+      title: 'Bien immobilier créé avec succès',
+      message: `Félicitations ! Votre bien "${propertyTitle}" (${propertyType}) a été créé avec succès et est maintenant visible sur la plateforme. Notre équipe vérifiera les informations dans les prochaines 24 heures. Vous recevrez une notification dès que votre bien sera validé.`,
+      type: 'property_created',
+      data: { propertyId, propertyTitle, propertyType },
+    });
+  }
+
+  // Helper method to notify admin when a new property is created
+  async createPropertyCreatedAdminNotification(
+    propertyId: string,
+    propertyTitle: string,
+    propertyType: string,
+    ownerName: string,
+    ownerEmail: string,
+  ) {
+    // Get all admin users
+    const admins = await this.prisma.user.findMany({
+      where: { role: 'admin' },
+      select: { id: true },
+    });
+
+    // Create notification for each admin
+    const notifications = await Promise.all(
+      admins.map((admin) =>
+        this.create({
+          userId: admin.id,
+          title: 'Nouveau bien immobilier à vérifier',
+          message: `Un nouveau bien "${propertyTitle}" (${propertyType}) a été ajouté par ${ownerName} (${ownerEmail}). Veuillez vérifier et valider les informations du bien dans les meilleurs délais.`,
+          type: 'property_created_admin',
+          data: {
+            propertyId,
+            propertyTitle,
+            propertyType,
+            ownerName,
+            ownerEmail,
+          },
+        }),
+      ),
+    );
+
+    return notifications;
   }
 }

@@ -156,6 +156,8 @@ model Property {
 
   securityDepositMonths Int? // Nombre de mois de garantie
   commissionMonths      Int? // Nombre de mois de commission
+  commissionPercentage  Float? // Pourcentage de commission pour les ventes (0-100)
+  landSize              Float? // Superficie en m² pour parcelles et maisons
 
   isFeatured  Boolean @default(false)
   isVerified  Boolean @default(false)

@@ -12,6 +12,7 @@ import {
   UseGuards,
   ParseUUIDPipe,
   BadRequestException,
+  Query,
 } from '@nestjs/common';
 import { PropertyService } from './property.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
@@ -57,8 +58,11 @@ export class PropertyController {
   // =============================
   @UseGuards(JwtAccessGuard)
   @Get('my-properties')
-  getMyProperties(@CurrentUser('userId') userId: string) {
-    return this.propertyService.findUserProperties(userId, true); // true = inclure les indisponibles
+  getMyProperties(
+    @CurrentUser('userId') userId: string,
+    @Query('status') status?: 'available' | 'reserved' | 'rented',
+  ) {
+    return this.propertyService.findUserPropertiesByStatus(userId, status);
   }
 
   // =============================
@@ -76,6 +80,7 @@ export class PropertyController {
   @UseGuards(JwtAccessGuard)
   @Get('favorites')
   getUserFavorites(@CurrentUser('userId') userId: string) {
+    console.log('🔍 getUserFavorites controller - userId:', userId);
     return this.propertyService.getFavoritesByUser(userId);
   }
 

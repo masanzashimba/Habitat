@@ -54,13 +54,19 @@ export class TenantController {
   @Get()
   async findAll(
     @CurrentUser('userId') ownerId: string,
+    @CurrentUser('role') userRole: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
     const pageNum = page ? parseInt(page) : 1;
     const limitNum = limit ? parseInt(limit) : 10;
 
-    const result = await this.tenantService.findAll(ownerId, pageNum, limitNum);
+    const result = await this.tenantService.findAll(
+      ownerId,
+      userRole,
+      pageNum,
+      limitNum,
+    );
     return this.response(true, result, 'Liste des locataires récupérée');
   }
 
@@ -167,11 +173,14 @@ export class TenantController {
   async unassignFromProperty(
     @Body() body: { tenantId: string; propertyId: string },
     @CurrentUser('userId') ownerId: string,
+    @Request() req: any,
   ) {
+    const userRole = req.user?.role || 'owner';
     const result = await this.tenantService.unassignFromProperty(
       body.tenantId,
       body.propertyId,
       ownerId,
+      userRole,
     );
     return this.response(true, result, 'Locataire désassigné de la propriété');
   }

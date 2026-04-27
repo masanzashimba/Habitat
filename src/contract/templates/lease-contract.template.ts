@@ -74,214 +74,48 @@ export const generateLeaseContractHTML = (data: LeaseContractData): string => {
     });
   };
 
-  return `
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contrat de Bail - ${data.contractNumber}</title>
-  <style>
-    @page {
-      size: A4;
-      margin: 2cm;
-    }
-    
-    body {
-      font-family: 'Times New Roman', Times, serif;
-      font-size: 12pt;
-      line-height: 1.6;
-      color: #000;
-      max-width: 21cm;
-      margin: 0 auto;
-      padding: 20px;
-      background: #fff;
-    }
-    
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-      border-bottom: 3px solid #000;
-      padding-bottom: 20px;
-    }
-    
-    .header h1 {
-      font-size: 24pt;
-      font-weight: bold;
-      margin: 0 0 10px 0;
-      text-transform: uppercase;
-    }
-    
-    .header .contract-number {
-      font-size: 11pt;
-      color: #666;
-      margin-top: 10px;
-    }
-    
-    .section {
-      margin-bottom: 25px;
-    }
-    
-    .section-title {
-      font-size: 14pt;
-      font-weight: bold;
-      margin-bottom: 15px;
-      text-transform: uppercase;
-      border-bottom: 2px solid #333;
-      padding-bottom: 5px;
-    }
-    
-    .article {
-      margin-bottom: 20px;
-    }
-    
-    .article-title {
-      font-weight: bold;
-      margin-bottom: 10px;
-      font-size: 13pt;
-    }
-    
-    .article-content {
-      text-align: justify;
-      margin-left: 20px;
-    }
-    
-    .parties {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 30px;
-    }
-    
-    .party {
-      flex: 1;
-      padding: 15px;
-      border: 1px solid #333;
-      margin: 0 10px;
-    }
-    
-    .party-title {
-      font-weight: bold;
-      font-size: 13pt;
-      margin-bottom: 10px;
-      text-align: center;
-      text-transform: uppercase;
-    }
-    
-    .party-info {
-      margin: 5px 0;
-    }
-    
-    .property-details {
-      background: #f5f5f5;
-      padding: 15px;
-      border-left: 4px solid #333;
-      margin: 15px 0;
-    }
-    
-    .financial-table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 15px 0;
-    }
-    
-    .financial-table th,
-    .financial-table td {
-      border: 1px solid #333;
-      padding: 10px;
-      text-align: left;
-    }
-    
-    .financial-table th {
-      background: #333;
-      color: #fff;
-      font-weight: bold;
-    }
-    
-    .signatures {
-      margin-top: 50px;
-      display: flex;
-      justify-content: space-between;
-    }
-    
-    .signature-block {
-      text-align: center;
-      flex: 1;
-      margin: 0 20px;
-    }
-    
-    .signature-line {
-      border-top: 2px solid #000;
-      margin-top: 80px;
-      padding-top: 10px;
-    }
-    
-    .footer {
-      margin-top: 50px;
-      text-align: center;
-      font-size: 10pt;
-      color: #666;
-      border-top: 1px solid #ccc;
-      padding-top: 20px;
-    }
-    
-    .highlight {
-      background: #ffffcc;
-      padding: 2px 5px;
-    }
-    
-    @media print {
-      body {
-        padding: 0;
-      }
-      
-      .no-print {
-        display: none;
-      }
-    }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Contrat de Bail d'Habitation</h1>
-    <div class="contract-number">N° ${data.contractNumber}</div>
+  return `<div class="contract-container">
+  <div class="header" style="text-align: center; margin-bottom: 30px; border-bottom: 3px solid #000; padding-bottom: 20px;">
+    <h1 style="font-size: 24pt; font-weight: bold; margin: 0 0 10px 0; text-transform: uppercase;">Contrat de Bail d'Habitation</h1>
+    <div class="contract-number" style="font-size: 11pt; color: #666; margin-top: 10px;">N° ${data.contractNumber}</div>
     <div style="margin-top: 10px; font-size: 11pt;">
       République Démocratique du Congo
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Entre les soussignés</div>
+  <div class="section" style="margin-bottom: 25px;">
+    <div class="section-title" style="font-size: 14pt; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px;">Entre les soussignés</div>
     
-    <div class="parties">
-      <div class="party">
-        <div class="party-title">Le Bailleur</div>
-        <div class="party-info"><strong>Nom :</strong> ${data.landlord.fullName}</div>
-        ${data.landlord.companyName ? `<div class="party-info"><strong>Société :</strong> ${data.landlord.companyName}</div>` : ''}
-        ${data.landlord.companyId ? `<div class="party-info"><strong>N° Entreprise :</strong> ${data.landlord.companyId}</div>` : ''}
-        <div class="party-info"><strong>Email :</strong> ${data.landlord.email}</div>
-        ${data.landlord.phone ? `<div class="party-info"><strong>Téléphone :</strong> ${data.landlord.phone}</div>` : ''}
-        ${data.landlord.address ? `<div class="party-info"><strong>Adresse :</strong> ${data.landlord.address}, ${data.landlord.city || 'Kinshasa'}</div>` : ''}
+    <div class="parties" style="display: flex; justify-content: space-between; margin-bottom: 30px; gap: 20px;">
+      <div class="party" style="flex: 1; padding: 15px; border: 1px solid #333;">
+        <div class="party-title" style="font-weight: bold; font-size: 13pt; margin-bottom: 10px; text-align: center; text-transform: uppercase;">Le Bailleur</div>
+        <div class="party-info" style="margin: 5px 0;"><strong>Nom :</strong> ${data.landlord.fullName}</div>
+        ${data.landlord.companyName ? `<div class="party-info" style="margin: 5px 0;"><strong>Société :</strong> ${data.landlord.companyName}</div>` : ''}
+        ${data.landlord.companyId ? `<div class="party-info" style="margin: 5px 0;"><strong>N° Entreprise :</strong> ${data.landlord.companyId}</div>` : ''}
+        <div class="party-info" style="margin: 5px 0;"><strong>Email :</strong> ${data.landlord.email}</div>
+        ${data.landlord.phone ? `<div class="party-info" style="margin: 5px 0;"><strong>Téléphone :</strong> ${data.landlord.phone}</div>` : ''}
+        ${data.landlord.address ? `<div class="party-info" style="margin: 5px 0;"><strong>Adresse :</strong> ${data.landlord.address}, ${data.landlord.city || 'Kinshasa'}</div>` : ''}
       </div>
       
-      <div class="party">
-        <div class="party-title">Le Locataire</div>
-        <div class="party-info"><strong>Nom :</strong> ${data.tenant.fullName}</div>
-        ${data.tenant.nationalId ? `<div class="party-info"><strong>N° Carte d'identité :</strong> ${data.tenant.nationalId}</div>` : ''}
-        <div class="party-info"><strong>Email :</strong> ${data.tenant.email}</div>
-        ${data.tenant.phone ? `<div class="party-info"><strong>Téléphone :</strong> ${data.tenant.phone}</div>` : ''}
-        ${data.tenant.occupation ? `<div class="party-info"><strong>Profession :</strong> ${data.tenant.occupation}</div>` : ''}
-        ${data.tenant.employer ? `<div class="party-info"><strong>Employeur :</strong> ${data.tenant.employer}</div>` : ''}
+      <div class="party" style="flex: 1; padding: 15px; border: 1px solid #333;">
+        <div class="party-title" style="font-weight: bold; font-size: 13pt; margin-bottom: 10px; text-align: center; text-transform: uppercase;">Le Locataire</div>
+        <div class="party-info" style="margin: 5px 0;"><strong>Nom :</strong> ${data.tenant.fullName}</div>
+        ${data.tenant.nationalId ? `<div class="party-info" style="margin: 5px 0;"><strong>N° Carte d'identité :</strong> ${data.tenant.nationalId}</div>` : ''}
+        <div class="party-info" style="margin: 5px 0;"><strong>Email :</strong> ${data.tenant.email}</div>
+        ${data.tenant.phone ? `<div class="party-info" style="margin: 5px 0;"><strong>Téléphone :</strong> ${data.tenant.phone}</div>` : ''}
+        ${data.tenant.occupation ? `<div class="party-info" style="margin: 5px 0;"><strong>Profession :</strong> ${data.tenant.occupation}</div>` : ''}
+        ${data.tenant.employer ? `<div class="party-info" style="margin: 5px 0;"><strong>Employeur :</strong> ${data.tenant.employer}</div>` : ''}
       </div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Objet du Contrat</div>
-    <div class="article">
-      <div class="article-title">Article 1 : Désignation du bien loué</div>
-      <div class="article-content">
-        <p>Le bailleur donne en location au locataire qui accepte, un bien immobilier situé à :</p>
-        <div class="property-details">
+  <div class="section" style="margin-bottom: 25px;">
+    <div class="section-title" style="font-size: 14pt; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px;">Objet du Contrat</div>
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 1 : Désignation du bien loué</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Le bailleur donne en location au locataire qui accepte, un bien immobilier situé à :</p>
+        <div class="property-details" style="background: #f5f5f5; padding: 15px; border-left: 4px solid #333; margin: 15px 0;">
           <div><strong>Désignation :</strong> ${data.property.title}</div>
           <div><strong>Type :</strong> ${data.property.propertyType}</div>
           <div><strong>Adresse complète :</strong></div>
@@ -298,19 +132,19 @@ export const generateLeaseContractHTML = (data: LeaseContractData): string => {
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Durée du Bail</div>
-    <div class="article">
-      <div class="article-title">Article 2 : Durée</div>
-      <div class="article-content">
-        <p>Le présent bail est consenti et accepté pour une durée de <span class="highlight">${data.duration.duration}</span>, 
-        prenant effet le <span class="highlight">${formatDate(data.duration.startDate)}</span>
-        ${data.duration.endDate ? ` et se terminant le <span class="highlight">${formatDate(data.duration.endDate)}</span>` : ' à durée indéterminée'}.</p>
+  <div class="section" style="margin-bottom: 25px;">
+    <div class="section-title" style="font-size: 14pt; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px;">Durée du Bail</div>
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 2 : Durée</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Le présent bail est consenti et accepté pour une durée de <span style="background: #ffffcc; padding: 2px 5px;">${data.duration.duration}</span>, 
+        prenant effet le <span style="background: #ffffcc; padding: 2px 5px;">${formatDate(data.duration.startDate)}</span>
+        ${data.duration.endDate ? ` et se terminant le <span style="background: #ffffcc; padding: 2px 5px;">${formatDate(data.duration.endDate)}</span>` : ' à durée indéterminée'}.</p>
         
         ${
           !data.duration.endDate
             ? `
-        <p>Le bail étant à durée indéterminée, chaque partie pourra y mettre fin moyennant un préavis de trois (3) mois 
+        <p style="margin-bottom: 1em;">Le bail étant à durée indéterminée, chaque partie pourra y mettre fin moyennant un préavis de trois (3) mois 
         notifié par lettre recommandée avec accusé de réception.</p>
         `
             : ''
@@ -319,32 +153,32 @@ export const generateLeaseContractHTML = (data: LeaseContractData): string => {
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Conditions Financières</div>
-    <div class="article">
-      <div class="article-title">Article 3 : Loyer et charges</div>
-      <div class="article-content">
-        <p>Le présent bail est consenti et accepté moyennant un loyer mensuel de :</p>
+  <div class="section" style="margin-bottom: 25px;">
+    <div class="section-title" style="font-size: 14pt; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px;">Conditions Financières</div>
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 3 : Loyer et charges</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Le présent bail est consenti et accepté moyennant un loyer mensuel de :</p>
         
-        <table class="financial-table">
+        <table style="width: 100%; border-collapse: collapse; margin: 15px 0;">
           <tr>
-            <th>Désignation</th>
-            <th>Montant</th>
+            <th style="border: 1px solid #333; padding: 10px; text-align: left; background: #333; color: #fff; font-weight: bold;">Désignation</th>
+            <th style="border: 1px solid #333; padding: 10px; text-align: left; background: #333; color: #fff; font-weight: bold;">Montant</th>
           </tr>
           <tr>
-            <td>Loyer mensuel</td>
-            <td><strong>${formatCurrency(data.financial.rentAmount, data.financial.currency)}</strong></td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;">Loyer mensuel</td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;"><strong>${formatCurrency(data.financial.rentAmount, data.financial.currency)}</strong></td>
           </tr>
           <tr>
-            <td>Garantie locative (Caution)</td>
-            <td><strong>${formatCurrency(data.financial.deposit, data.financial.currency)}</strong></td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;">Garantie locative (Caution)</td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;"><strong>${formatCurrency(data.financial.deposit, data.financial.currency)}</strong></td>
           </tr>
           ${
             data.financial.securityDepositMonths
               ? `
           <tr>
-            <td>Nombre de mois de garantie</td>
-            <td>${data.financial.securityDepositMonths} mois</td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;">Nombre de mois de garantie</td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;">${data.financial.securityDepositMonths} mois</td>
           </tr>
           `
               : ''
@@ -353,103 +187,103 @@ export const generateLeaseContractHTML = (data: LeaseContractData): string => {
             data.financial.commissionMonths
               ? `
           <tr>
-            <td>Commission d'agence</td>
-            <td>${data.financial.commissionMonths} mois de loyer</td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;">Commission d'agence</td>
+            <td style="border: 1px solid #333; padding: 10px; text-align: left;">${data.financial.commissionMonths} mois de loyer</td>
           </tr>
           `
               : ''
           }
         </table>
         
-        <p>Le loyer est payable d'avance, au plus tard le <span class="highlight">${data.financial.paymentDay}</span> de chaque mois, 
+        <p style="margin-bottom: 1em;">Le loyer est payable d'avance, au plus tard le <span style="background: #ffffcc; padding: 2px 5px;">${data.financial.paymentDay}</span> de chaque mois, 
         par virement bancaire ou tout autre moyen convenu entre les parties.</p>
       </div>
     </div>
     
-    <div class="article">
-      <div class="article-title">Article 4 : Garantie locative</div>
-      <div class="article-content">
-        <p>Le locataire verse au bailleur, à la signature du présent contrat, une garantie locative d'un montant de 
-        <span class="highlight">${formatCurrency(data.financial.deposit, data.financial.currency)}</span>.</p>
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 4 : Garantie locative</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Le locataire verse au bailleur, à la signature du présent contrat, une garantie locative d'un montant de 
+        <span style="background: #ffffcc; padding: 2px 5px;">${formatCurrency(data.financial.deposit, data.financial.currency)}</span>.</p>
         
-        <p>Cette garantie sera restituée au locataire dans un délai de trente (30) jours suivant la restitution des lieux, 
+        <p style="margin-bottom: 1em;">Cette garantie sera restituée au locataire dans un délai de trente (30) jours suivant la restitution des lieux, 
         déduction faite, le cas échéant, des sommes restant dues et des frais de remise en état des lieux.</p>
       </div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Obligations des Parties</div>
+  <div class="section" style="margin-bottom: 25px;">
+    <div class="section-title" style="font-size: 14pt; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px;">Obligations des Parties</div>
     
-    <div class="article">
-      <div class="article-title">Article 5 : Obligations du bailleur</div>
-      <div class="article-content">
-        <p>Le bailleur s'engage à :</p>
-        <ul>
-          <li>Délivrer au locataire le logement en bon état d'usage et de réparation</li>
-          <li>Assurer au locataire la jouissance paisible du logement</li>
-          <li>Entretenir les locaux en état de servir à l'usage prévu</li>
-          <li>Effectuer les réparations autres que locatives</li>
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 5 : Obligations du bailleur</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Le bailleur s'engage à :</p>
+        <ul style="margin: 1em 0; padding-left: 2em;">
+          <li style="margin-bottom: 0.5em;">Délivrer au locataire le logement en bon état d'usage et de réparation</li>
+          <li style="margin-bottom: 0.5em;">Assurer au locataire la jouissance paisible du logement</li>
+          <li style="margin-bottom: 0.5em;">Entretenir les locaux en état de servir à l'usage prévu</li>
+          <li style="margin-bottom: 0.5em;">Effectuer les réparations autres que locatives</li>
         </ul>
       </div>
     </div>
     
-    <div class="article">
-      <div class="article-title">Article 6 : Obligations du locataire</div>
-      <div class="article-content">
-        <p>Le locataire s'engage à :</p>
-        <ul>
-          <li>Payer le loyer aux termes convenus</li>
-          <li>User paisiblement des locaux loués suivant leur destination</li>
-          <li>Répondre des dégradations et pertes qui surviennent pendant la durée du bail</li>
-          <li>Entretenir le logement et effectuer les réparations locatives</li>
-          <li>Ne pas transformer les lieux loués sans l'accord écrit du bailleur</li>
-          <li>Souscrire une assurance habitation couvrant les risques locatifs</li>
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 6 : Obligations du locataire</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Le locataire s'engage à :</p>
+        <ul style="margin: 1em 0; padding-left: 2em;">
+          <li style="margin-bottom: 0.5em;">Payer le loyer aux termes convenus</li>
+          <li style="margin-bottom: 0.5em;">User paisiblement des locaux loués suivant leur destination</li>
+          <li style="margin-bottom: 0.5em;">Répondre des dégradations et pertes qui surviennent pendant la durée du bail</li>
+          <li style="margin-bottom: 0.5em;">Entretenir le logement et effectuer les réparations locatives</li>
+          <li style="margin-bottom: 0.5em;">Ne pas transformer les lieux loués sans l'accord écrit du bailleur</li>
+          <li style="margin-bottom: 0.5em;">Souscrire une assurance habitation couvrant les risques locatifs</li>
         </ul>
       </div>
     </div>
   </div>
 
-  <div class="section">
-    <div class="section-title">Dispositions Diverses</div>
+  <div class="section" style="margin-bottom: 25px;">
+    <div class="section-title" style="font-size: 14pt; font-weight: bold; margin-bottom: 15px; text-transform: uppercase; border-bottom: 2px solid #333; padding-bottom: 5px;">Dispositions Diverses</div>
     
-    <div class="article">
-      <div class="article-title">Article 7 : État des lieux</div>
-      <div class="article-content">
-        <p>Un état des lieux contradictoire sera établi lors de la remise des clés et lors de la restitution du logement. 
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 7 : État des lieux</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Un état des lieux contradictoire sera établi lors de la remise des clés et lors de la restitution du logement. 
         Il fera partie intégrante du présent contrat.</p>
       </div>
     </div>
     
-    <div class="article">
-      <div class="article-title">Article 8 : Résiliation</div>
-      <div class="article-content">
-        <p>En cas de manquement par l'une des parties à ses obligations, et un mois après un commandement ou une mise en demeure 
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 8 : Résiliation</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">En cas de manquement par l'une des parties à ses obligations, et un mois après un commandement ou une mise en demeure 
         restée infructueuse, le présent bail pourra être résilié de plein droit si bon semble à la partie lésée.</p>
       </div>
     </div>
     
-    <div class="article">
-      <div class="article-title">Article 9 : Élection de domicile</div>
-      <div class="article-content">
-        <p>Pour l'exécution des présentes, les parties font élection de domicile en leurs adresses respectives indiquées ci-dessus.</p>
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 9 : Élection de domicile</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Pour l'exécution des présentes, les parties font élection de domicile en leurs adresses respectives indiquées ci-dessus.</p>
       </div>
     </div>
     
-    <div class="article">
-      <div class="article-title">Article 10 : Litiges</div>
-      <div class="article-content">
-        <p>Tout litige relatif à l'interprétation ou à l'exécution du présent contrat sera soumis aux tribunaux compétents 
+    <div class="article" style="margin-bottom: 20px;">
+      <div class="article-title" style="font-weight: bold; margin-bottom: 10px; font-size: 13pt;">Article 10 : Litiges</div>
+      <div class="article-content" style="text-align: justify; margin-left: 20px;">
+        <p style="margin-bottom: 1em;">Tout litige relatif à l'interprétation ou à l'exécution du présent contrat sera soumis aux tribunaux compétents 
         de Kinshasa, République Démocratique du Congo.</p>
       </div>
     </div>
   </div>
 
-  <div class="signatures">
-    <div class="signature-block">
+  <div class="signatures" style="margin-top: 50px; display: flex; justify-content: space-between; gap: 20px;">
+    <div class="signature-block" style="text-align: center; flex: 1; margin: 0 20px;">
       <div><strong>Le Bailleur</strong></div>
       <div>${data.landlord.fullName}</div>
-      <div class="signature-line">
+      <div class="signature-line" style="border-top: 2px solid #000; margin-top: 80px; padding-top: 10px;">
         Signature
       </div>
       <div style="margin-top: 10px; font-size: 10pt;">
@@ -457,10 +291,10 @@ export const generateLeaseContractHTML = (data: LeaseContractData): string => {
       </div>
     </div>
     
-    <div class="signature-block">
+    <div class="signature-block" style="text-align: center; flex: 1; margin: 0 20px;">
       <div><strong>Le Locataire</strong></div>
       <div>${data.tenant.fullName}</div>
-      <div class="signature-line">
+      <div class="signature-line" style="border-top: 2px solid #000; margin-top: 80px; padding-top: 10px;">
         Signature
       </div>
       <div style="margin-top: 10px; font-size: 10pt;">
@@ -469,15 +303,13 @@ export const generateLeaseContractHTML = (data: LeaseContractData): string => {
     </div>
   </div>
 
-  <div class="footer">
-    <p>Fait à Kinshasa, le ${formatDate(data.signatureDate)}</p>
-    <p>En deux exemplaires originaux, dont un pour chaque partie.</p>
+  <div class="footer" style="margin-top: 50px; text-align: center; font-size: 10pt; color: #666; border-top: 1px solid #ccc; padding-top: 20px;">
+    <p style="margin-bottom: 1em;">Fait à Kinshasa, le ${formatDate(data.signatureDate)}</p>
+    <p style="margin-bottom: 1em;">En deux exemplaires originaux, dont un pour chaque partie.</p>
     <p style="margin-top: 20px; font-size: 9pt;">
       Document généré par LogeMoi - Plateforme de gestion immobilière<br>
       Référence : ${data.contractNumber}
     </p>
   </div>
-</body>
-</html>
-  `.trim();
+</div>`.trim();
 };

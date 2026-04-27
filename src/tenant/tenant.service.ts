@@ -88,18 +88,28 @@ export class TenantService {
   // =============================
   // FIND ALL TENANTS (WITH PAGINATION)
   // =============================
-  async findAll(ownerId: string, page: number = 1, limit: number = 10) {
+  async findAll(
+    ownerId: string,
+    userRole: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     const skip = (page - 1) * limit;
+
+    // Si l'utilisateur est admin, ne pas filtrer par ownerId
+    const whereClause = userRole === 'admin' ? {} : { ownerId };
 
     const [tenants, total] = await Promise.all([
       this.prisma.tenant.findMany({
-        where: { ownerId },
+        where: whereClause,
         include: {
           owner: {
             select: {
               id: true,
               email: true,
               role: true,
+              firstName: true,
+              lastName: true,
             },
           },
           leases: {
@@ -110,6 +120,14 @@ export class TenantService {
                   id: true,
                   title: true,
                   status: true,
+                  address: true,
+                },
+              },
+              contract: {
+                select: {
+                  id: true,
+                  signedAt: true,
+                  createdAt: true,
                 },
               },
             },
@@ -119,6 +137,10 @@ export class TenantService {
               id: true,
               email: true,
               isActive: true,
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+              phone: true,
             },
           },
         },
@@ -127,7 +149,7 @@ export class TenantService {
         take: limit,
       }),
       this.prisma.tenant.count({
-        where: { ownerId },
+        where: whereClause,
       }),
     ]);
 
@@ -154,6 +176,8 @@ export class TenantService {
             id: true,
             email: true,
             role: true,
+            firstName: true,
+            lastName: true,
           },
         },
         leases: {
@@ -163,6 +187,14 @@ export class TenantService {
                 id: true,
                 title: true,
                 status: true,
+                address: true,
+              },
+            },
+            contract: {
+              select: {
+                id: true,
+                signedAt: true,
+                createdAt: true,
               },
             },
           },
@@ -172,6 +204,13 @@ export class TenantService {
             id: true,
             email: true,
             isActive: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            phone: true,
+            address: true,
+            city: true,
+            birthDate: true,
           },
         },
         bookings: {
@@ -180,6 +219,7 @@ export class TenantService {
               select: {
                 id: true,
                 title: true,
+                address: true,
               },
             },
           },
@@ -204,7 +244,20 @@ export class TenantService {
       throw new ForbiddenException('Accès non autorisé à ce locataire');
     }
 
-    return tenant;
+    // Si l'utilisateur est admin, renvoyer toutes les informations
+    if (user?.role === 'admin') {
+      return tenant;
+    }
+
+    // Pour les propriétaires, filtrer les informations du user selon le contrat
+    const hasSignedContract = tenant.leases.some(
+      (lease) => lease.contract?.signedAt !== null,
+    );
+
+    return {
+      ...tenant,
+      user: hasSignedContract ? tenant.user : null,
+    };
   }
 
   // =============================
@@ -218,6 +271,14 @@ export class TenantService {
   ) {
     const tenant = await this.prisma.tenant.findUnique({
       where: { id },
+      include: {
+        leases: {
+          where: { status: LeaseStatus.active },
+          include: {
+            contract: true,
+          },
+        },
+      },
     });
 
     if (!tenant) {
@@ -232,6 +293,17 @@ export class TenantService {
     if (user?.role !== 'admin' && tenant.ownerId !== userId) {
       throw new ForbiddenException(
         'Accès non autorisé pour modifier ce locataire',
+      );
+    }
+
+    // Vérifier si le locataire a un contrat signé
+    const hasSignedContract = tenant.leases.some(
+      (lease) => lease.contract?.signedAt !== null,
+    );
+
+    if (hasSignedContract && user?.role !== 'admin') {
+      throw new ForbiddenException(
+        'Impossible de modifier un locataire avec un contrat signé. Seul un admin peut effectuer cette action.',
       );
     }
 
@@ -340,13 +412,75 @@ export class TenantService {
       where: { id: currentUserId },
     });
 
-    if (user?.role !== 'admin' && ownerId !== currentUserId) {
+    // Si admin, retourner tous les locataires
+    if (user?.role === 'admin') {
+      const tenants = await this.prisma.tenant.findMany({
+        include: {
+          owner: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          leases: {
+            where: { status: LeaseStatus.active },
+            include: {
+              property: {
+                select: {
+                  id: true,
+                  title: true,
+                  status: true,
+                  address: true,
+                },
+              },
+              contract: {
+                select: {
+                  id: true,
+                  signedAt: true,
+                  createdAt: true,
+                },
+              },
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              isActive: true,
+              firstName: true,
+              lastName: true,
+              profileImage: true,
+              phone: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      // Pour l'admin, toujours montrer les infos du user si disponibles
+      return tenants.map((tenant) => {
+        const hasSignedContract = tenant.leases.some(
+          (lease) => lease.contract?.signedAt !== null,
+        );
+
+        return {
+          ...tenant,
+          user: hasSignedContract ? tenant.user : null,
+        };
+      });
+    }
+
+    // Pour les propriétaires, vérifier qu'ils accèdent à leurs propres locataires
+    if (ownerId !== currentUserId) {
       throw new ForbiddenException(
         'Accès non autorisé aux locataires de ce propriétaire',
       );
     }
 
-    return this.prisma.tenant.findMany({
+    const tenants = await this.prisma.tenant.findMany({
       where: { ownerId },
       include: {
         leases: {
@@ -357,6 +491,14 @@ export class TenantService {
                 id: true,
                 title: true,
                 status: true,
+                address: true,
+              },
+            },
+            contract: {
+              select: {
+                id: true,
+                signedAt: true,
+                createdAt: true,
               },
             },
           },
@@ -366,10 +508,26 @@ export class TenantService {
             id: true,
             email: true,
             isActive: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+            phone: true,
           },
         },
       },
       orderBy: { createdAt: 'desc' },
+    });
+
+    // Filtrer les informations du user : ne les renvoyer que si au moins un contrat est signé
+    return tenants.map((tenant) => {
+      const hasSignedContract = tenant.leases.some(
+        (lease) => lease.contract?.signedAt !== null,
+      );
+
+      return {
+        ...tenant,
+        user: hasSignedContract ? tenant.user : null,
+      };
     });
   }
 
@@ -463,6 +621,7 @@ export class TenantService {
     tenantId: string,
     propertyId: string,
     ownerId: string,
+    userRole: string,
   ) {
     // Vérifier que le bail existe et appartient au propriétaire
     const lease = await this.prisma.lease.findFirst({
@@ -472,11 +631,21 @@ export class TenantService {
         ownerId,
         status: LeaseStatus.active,
       },
+      include: {
+        contract: true,
+      },
     });
 
     if (!lease) {
       throw new NotFoundException(
         'Bail actif non trouvé pour ce locataire et cette propriété',
+      );
+    }
+
+    // Vérifier si le contrat est signé
+    if (lease.contract?.signedAt && userRole !== 'admin') {
+      throw new ForbiddenException(
+        'Impossible de désassigner un locataire avec un contrat signé. Seul un admin peut effectuer cette action.',
       );
     }
 

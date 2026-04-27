@@ -105,6 +105,7 @@ export class BookingService {
         'new',
         property.title,
         {
+          tenantUserId: userId, // Ajouter l'ID de l'utilisateur
           tenantName: booking.user?.email || 'Client',
           startDate: booking.startDate,
           endDate: booking.endDate,
@@ -149,6 +150,7 @@ export class BookingService {
           'new',
           property.title,
           {
+            tenantUserId: userId, // Ajouter l'ID de l'utilisateur
             propertyOwner: property.userId,
             tenantName: booking.user?.email || 'Client',
             startDate: booking.startDate,
@@ -187,13 +189,25 @@ export class BookingService {
     return this.prisma.booking.findMany({
       where,
       include: {
-        property: true,
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
             phone: true,
             role: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
           },
         },
         tenant: true,
@@ -215,13 +229,25 @@ export class BookingService {
     const booking = await this.prisma.booking.findUnique({
       where: { id },
       include: {
-        property: true,
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
             phone: true,
             role: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
           },
         },
         tenant: true,
@@ -285,13 +311,25 @@ export class BookingService {
       where: { id },
       data: updateBookingDto,
       include: {
-        property: true,
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
             phone: true,
             role: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
           },
         },
         tenant: true,
@@ -346,12 +384,25 @@ export class BookingService {
     return this.prisma.booking.findMany({
       where: { propertyId },
       include: {
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
             phone: true,
             role: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
           },
         },
         tenant: true,
@@ -373,7 +424,16 @@ export class BookingService {
     return this.prisma.booking.findMany({
       where: { userId },
       include: {
-        property: true,
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         tenant: true,
         validatedBy: {
           select: {
@@ -409,13 +469,25 @@ export class BookingService {
     return this.prisma.booking.findMany({
       where: { tenantId },
       include: {
-        property: true,
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
             phone: true,
             role: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
           },
         },
         tenant: true,
@@ -524,13 +596,25 @@ export class BookingService {
         validatedAt: new Date(),
       },
       include: {
-        property: true,
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
             phone: true,
             role: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
           },
         },
         tenant: true,
@@ -580,6 +664,36 @@ export class BookingService {
         );
       } catch (error) {
         console.error('Failed to create property booked notification:', error);
+      }
+    }
+
+    // If booking is rejected or cancelled, mark property as available again
+    if (status === 'rejected' || status === 'cancelled') {
+      await this.prisma.property.update({
+        where: { id: booking.propertyId },
+        data: {
+          status: 'available',
+        },
+      });
+
+      // Notify property owner that their property is available again
+      try {
+        await this.notificationService.create({
+          userId: booking.property.userId,
+          title: 'Bien à nouveau disponible',
+          message: `Votre bien "${booking.property.title}" est maintenant disponible suite au ${status === 'rejected' ? 'rejet' : "l'annulation"} de la réservation. Vous pouvez accepter de nouvelles demandes de réservation.`,
+          type: 'property_available',
+          data: {
+            bookingId: booking.id,
+            propertyId: booking.propertyId,
+            propertyTitle: booking.property.title,
+          },
+        });
+      } catch (error) {
+        console.error(
+          'Failed to create property available notification:',
+          error,
+        );
       }
     }
 
@@ -655,21 +769,36 @@ export class BookingService {
         status: 'cancelled',
       },
       include: {
-        property: true,
+        property: {
+          include: {
+            images: {
+              orderBy: {
+                isPrimary: 'desc',
+              },
+            },
+            address: true,
+          },
+        },
         user: {
           select: {
             id: true,
             email: true,
             phone: true,
             role: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
           },
         },
         tenant: true,
       },
     });
 
-    // If booking was confirmed, mark property as available again
-    if (booking.status === 'confirmed') {
+    // If booking was confirmed or if property is reserved, mark property as available again
+    if (
+      booking.status === 'confirmed' ||
+      booking.property.status === 'reserved'
+    ) {
       await this.prisma.property.update({
         where: { id: booking.propertyId },
         data: {

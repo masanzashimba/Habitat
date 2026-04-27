@@ -8,12 +8,16 @@ import { PrismaService } from '../prisma.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { UpdatePropertyDto } from './dto/update-property.dto';
 import { CloudinaryService } from '../cloudinary.service';
+import { NotificationService } from '../notification/notification.service';
+import { PropertyGateway } from './property.gateway';
 
 @Injectable()
 export class PropertyService {
   constructor(
     private prisma: PrismaService,
     private cloudinaryService: CloudinaryService,
+    private notificationService: NotificationService,
+    private propertyGateway: PropertyGateway,
   ) {}
 
   // 🔥 SLUG
@@ -169,7 +173,47 @@ export class PropertyService {
     }
 
     // 🔥 ÉTAPE 3: Retourner la propriété complète avec les images
-    return this.findOne(property.id);
+    const completeProperty = await this.findOne(property.id);
+
+    // 🔥 ÉTAPE 4: Envoyer les notifications
+    try {
+      // Get owner information
+      const owner = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          firstName: true,
+          lastName: true,
+          email: true,
+        },
+      });
+
+      const ownerName = owner
+        ? `${owner.firstName || ''} ${owner.lastName || ''}`.trim() ||
+          owner.email
+        : 'Propriétaire';
+
+      // Notification pour le créateur
+      await this.notificationService.createPropertyCreatedNotification(
+        userId,
+        property.id,
+        propertyData.title,
+        propertyData.type,
+      );
+
+      // Notification pour les admins
+      await this.notificationService.createPropertyCreatedAdminNotification(
+        property.id,
+        propertyData.title,
+        propertyData.type,
+        ownerName,
+        owner?.email || '',
+      );
+    } catch (notificationError) {
+      // Log error but don't fail the property creation
+      console.error('Error sending notifications:', notificationError);
+    }
+
+    return completeProperty;
   }
 
   // =============================
@@ -191,6 +235,90 @@ export class PropertyService {
         reviews: true,
         amenities: { include: { amenity: true } },
         favorites: true, // Retourner TOUS les favoris pour compter
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // =============================
+  // FIND USER PROPERTIES
+  // =============================
+  async findUserProperties(userId: string, includeUnavailable: boolean = true) {
+    const whereClause: any = { userId };
+
+    // Si on n'inclut pas les indisponibles, filtrer par statut
+    if (!includeUnavailable) {
+      whereClause.status = 'available';
+    }
+
+    return this.prisma.property.findMany({
+      where: whereClause,
+      include: {
+        images: true,
+        address: true,
+        reviews: true,
+        amenities: { include: { amenity: true } },
+        favorites: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  // =============================
+  // FIND USER PROPERTIES BY STATUS
+  // =============================
+  async findUserPropertiesByStatus(
+    userId: string,
+    status?: 'available' | 'reserved' | 'rented',
+  ) {
+    const whereClause: any = { userId };
+
+    // Si un statut est spécifié, filtrer par ce statut
+    if (status) {
+      whereClause.status = status;
+    }
+
+    return this.prisma.property.findMany({
+      where: whereClause,
+      include: {
+        images: true,
+        address: true,
+        reviews: true,
+        amenities: { include: { amenity: true } },
+        favorites: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+            role: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -312,16 +440,35 @@ export class PropertyService {
       where: { propertyId, userId },
     });
 
+    let liked: boolean;
+
     if (existing) {
       await this.prisma.favorite.delete({ where: { id: existing.id } });
-      return { propertyId, liked: false };
+      liked = false;
+    } else {
+      await this.prisma.favorite.create({
+        data: { propertyId, userId },
+      });
+      liked = true;
     }
 
-    await this.prisma.favorite.create({
-      data: { propertyId, userId },
+    // Compter le nombre total de likes pour cette propriété
+    const likesCount = await this.prisma.favorite.count({
+      where: { propertyId },
     });
 
-    return { propertyId, liked: true };
+    // 🔥 Émettre la mise à jour en temps réel à tous les clients
+    this.propertyGateway.broadcastLikeUpdate(propertyId, likesCount, userId);
+
+    // 🔥 Émettre une mise à jour spécifique à l'utilisateur
+    this.propertyGateway.sendLikeUpdateToUser(
+      userId,
+      propertyId,
+      liked,
+      likesCount,
+    );
+
+    return { propertyId, liked, likesCount };
   }
 
   async getFavoritesByUser(userId: string) {
@@ -330,7 +477,16 @@ export class PropertyService {
       select: { propertyId: true },
     });
 
-    return favorites.map((f) => f.propertyId);
+    const propertyIds = favorites.map((f) => f.propertyId);
+
+    // 🔍 Debug: Afficher les favoris de l'utilisateur
+    console.log('🔍 getFavoritesByUser:', {
+      userId,
+      favoritesCount: favorites.length,
+      propertyIds,
+    });
+
+    return propertyIds;
   }
 
   // =============================

@@ -177,18 +177,18 @@ export class LeaseService {
     // Determine tenantId
     let tenantId = booking.tenantId;
     if (!tenantId && booking.userId) {
-      // Try to find or create tenant for this user
-      const existingTenant = await this.prisma.tenant.findFirst({
+      // Try to find tenant by userId first (userId is unique)
+      const existingTenant = await this.prisma.tenant.findUnique({
         where: {
           userId: booking.userId,
-          ownerId: booking.property.userId,
         },
       });
 
       if (existingTenant) {
+        // Tenant already exists, use it
         tenantId = existingTenant.id;
       } else {
-        // Create tenant profile
+        // Create new tenant profile
         const newTenant = await this.prisma.tenant.create({
           data: {
             userId: booking.userId,

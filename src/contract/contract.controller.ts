@@ -61,6 +61,30 @@ export class ContractController {
     return this.contractService.findAll(userId, userRole);
   }
 
+  @Get('signed')
+  findSigned(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.contractService.findSigned(userId, userRole);
+  }
+
+  @Get('unsigned')
+  findUnsigned(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.contractService.findUnsigned(userId, userRole);
+  }
+
+  @Get('status/summary')
+  getContractsSummary(
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.contractService.getContractsSummary(userId, userRole);
+  }
+
   @Get('lease/:leaseId')
   findByLease(
     @Param('leaseId') leaseId: string,
@@ -102,6 +126,15 @@ export class ContractController {
       userRole,
       signContractDto.userId,
     );
+  }
+
+  @Put(':id/unsign')
+  unsign(
+    @Param('id') id: string,
+    @CurrentUser('userId') userId: string,
+    @CurrentUser('role') userRole: string,
+  ) {
+    return this.contractService.unsign(id, userId, userRole);
   }
 
   @Delete(':id')
@@ -160,6 +193,30 @@ export class ContractController {
       buffer: pdfBuffer.toString('base64'),
       filename: `contrat-bail-${leaseId}.pdf`,
       contentType: 'application/pdf',
+    };
+  }
+
+  // =============================
+  // DEBUG ROUTE
+  // =============================
+  @Get('debug/user-info')
+  async debugUserInfo(@CurrentUser('userId') userId: string) {
+    // Trouver le tenant associé à cet utilisateur
+    const tenant = await this.contractService.findTenantByUserId(userId);
+
+    // Trouver tous les contrats
+    const allContracts = await this.contractService.findAllContractsDebug();
+
+    return {
+      userId,
+      tenant,
+      totalContracts: allContracts.length,
+      contracts: allContracts.map((c) => ({
+        id: c.id,
+        leaseId: c.leaseId,
+        tenantId: c.lease.tenantId,
+        tenantUserId: c.lease.tenant.userId,
+      })),
     };
   }
 }

@@ -4,9 +4,10 @@ import { ContractController } from './contract.controller';
 import { ContractGeneratorService } from './contract-generator.service';
 import { CloudinaryModule } from '../cloudinary.module';
 import { PrismaService } from '../prisma.service';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [CloudinaryModule],
+  imports: [CloudinaryModule, NotificationModule],
   controllers: [ContractController],
   providers: [ContractService, ContractGeneratorService, PrismaService],
   exports: [ContractService, ContractGeneratorService],

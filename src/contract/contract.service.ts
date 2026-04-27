@@ -9,6 +9,7 @@ import { UpdateContractDto } from './dto/update-contract.dto';
 import { PrismaService } from '../prisma.service';
 import { CloudinaryService } from '../cloudinary.service';
 import { ContractGeneratorService } from './contract-generator.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class ContractService {
@@ -16,6 +17,7 @@ export class ContractService {
     private readonly prisma: PrismaService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly contractGenerator: ContractGeneratorService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   async create(createContractDto: CreateContractDto, userId: string) {
@@ -43,6 +45,31 @@ export class ContractService {
     // Check if contract already exists for this lease
     if (lease.contract) {
       throw new BadRequestException('Contract already exists for this lease');
+    }
+
+    // 🔥 IMPORTANT: Associer le tenant à un utilisateur pour qu'il puisse voir le contrat
+    if (lease.tenant && !lease.tenant.userId) {
+      // Si le tenant n'a pas de userId, essayer de le trouver par email
+      if (lease.tenant.email) {
+        const tenantUser = await this.prisma.user.findUnique({
+          where: { email: lease.tenant.email },
+        });
+
+        if (tenantUser) {
+          // Associer le tenant à l'utilisateur
+          await this.prisma.tenant.update({
+            where: { id: lease.tenant.id },
+            data: { userId: tenantUser.id },
+          });
+          console.log(
+            `✅ Tenant ${lease.tenant.id} associé à l'utilisateur ${tenantUser.id}`,
+          );
+        } else {
+          console.warn(
+            `⚠️ Aucun utilisateur trouvé avec l'email ${lease.tenant.email}`,
+          );
+        }
+      }
     }
 
     // Verify creator exists
@@ -111,6 +138,9 @@ export class ContractService {
   async findAll(userId: string, userRole: string) {
     let where: any = {};
 
+    // 🔍 Debug: Log des paramètres
+    console.log('🔍 findAll - userId:', userId, 'userRole:', userRole);
+
     // Filter based on role
     if (userRole === 'owner') {
       where.lease = {
@@ -125,16 +155,110 @@ export class ContractService {
     }
     // Admin sees all contracts (no filter)
 
+    // 🔍 Debug: Log du filtre
+    console.log('🔍 findAll - where:', JSON.stringify(where, null, 2));
+
+    const contracts = await this.prisma.contract.findMany({
+      where,
+      include: {
+        lease: {
+          include: {
+            property: {
+              include: {
+                address: true,
+                images: {
+                  orderBy: {
+                    isPrimary: 'desc',
+                  },
+                },
+              },
+            },
+            tenant: true,
+            owner: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+              },
+            },
+          },
+        },
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // 🔍 Debug: Log des résultats
+    console.log('🔍 findAll - contracts found:', contracts.length);
+    if (contracts.length > 0) {
+      console.log('🔍 First contract tenant:', contracts[0].lease.tenant);
+    }
+
+    return contracts;
+  }
+
+  async findSigned(userId: string, userRole: string) {
+    let where: any = {
+      signedAt: {
+        not: null,
+      },
+    };
+
+    // Filter based on role
+    if (userRole === 'owner') {
+      where.lease = {
+        ownerId: userId,
+      };
+    } else if (userRole === 'tenant') {
+      where.lease = {
+        tenant: {
+          userId,
+        },
+      };
+    }
+    // Admin sees all signed contracts (no additional filter)
+
     return this.prisma.contract.findMany({
       where,
       include: {
         lease: {
           include: {
-            property: true,
+            property: {
+              include: {
+                address: true,
+                images: {
+                  orderBy: {
+                    isPrimary: 'desc',
+                  },
+                },
+              },
+            },
             tenant: true,
             owner: {
               select: {
                 id: true,
+                firstName: true,
+                lastName: true,
                 email: true,
                 phone: true,
                 role: true,
@@ -165,17 +289,266 @@ export class ContractService {
     });
   }
 
+  async findUnsigned(userId: string, userRole: string) {
+    let where: any = {
+      signedAt: null,
+    };
+
+    // Filter based on role
+    if (userRole === 'owner') {
+      where.lease = {
+        ownerId: userId,
+      };
+    } else if (userRole === 'tenant') {
+      where.lease = {
+        tenant: {
+          userId,
+        },
+      };
+    }
+    // Admin sees all unsigned contracts (no additional filter)
+
+    return this.prisma.contract.findMany({
+      where,
+      include: {
+        lease: {
+          include: {
+            property: {
+              include: {
+                address: true,
+                images: {
+                  orderBy: {
+                    isPrimary: 'desc',
+                  },
+                },
+              },
+            },
+            tenant: true,
+            owner: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+              },
+            },
+          },
+        },
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  async getContractsSummary(userId: string, userRole: string) {
+    // Build base filter based on role
+    let baseWhere: any = {};
+
+    if (userRole === 'owner') {
+      baseWhere.lease = {
+        ownerId: userId,
+      };
+    } else if (userRole === 'tenant') {
+      baseWhere.lease = {
+        tenant: {
+          userId,
+        },
+      };
+    }
+    // Admin sees all contracts (no filter)
+
+    // Get signed contracts
+    const signedContracts = await this.prisma.contract.findMany({
+      where: {
+        ...baseWhere,
+        signedAt: {
+          not: null,
+        },
+      },
+      include: {
+        lease: {
+          include: {
+            property: {
+              include: {
+                address: true,
+                images: {
+                  where: {
+                    isPrimary: true,
+                  },
+                  take: 1,
+                },
+              },
+            },
+            tenant: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                profileImage: true,
+              },
+            },
+            owner: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+              },
+            },
+          },
+        },
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: {
+        signedAt: 'desc',
+      },
+    });
+
+    // Get unsigned contracts
+    const unsignedContracts = await this.prisma.contract.findMany({
+      where: {
+        ...baseWhere,
+        signedAt: null,
+      },
+      include: {
+        lease: {
+          include: {
+            property: {
+              include: {
+                address: true,
+                images: {
+                  where: {
+                    isPrimary: true,
+                  },
+                  take: 1,
+                },
+              },
+            },
+            tenant: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                profileImage: true,
+              },
+            },
+            owner: {
+              select: {
+                id: true,
+                firstName: true,
+                lastName: true,
+                email: true,
+                phone: true,
+                role: true,
+              },
+            },
+          },
+        },
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Calculate statistics
+    const totalContracts = signedContracts.length + unsignedContracts.length;
+    const signedCount = signedContracts.length;
+    const unsignedCount = unsignedContracts.length;
+    const signedPercentage =
+      totalContracts > 0 ? (signedCount / totalContracts) * 100 : 0;
+
+    return {
+      summary: {
+        total: totalContracts,
+        signed: signedCount,
+        unsigned: unsignedCount,
+        signedPercentage: Math.round(signedPercentage * 100) / 100,
+      },
+      contracts: {
+        signed: signedContracts,
+        unsigned: unsignedContracts,
+      },
+    };
+  }
+
   async findOne(id: string, userId: string, userRole: string) {
     const contract = await this.prisma.contract.findUnique({
       where: { id },
       include: {
         lease: {
           include: {
-            property: true,
+            property: {
+              include: {
+                address: true,
+                images: {
+                  orderBy: {
+                    isPrimary: 'desc',
+                  },
+                },
+              },
+            },
             tenant: true,
             owner: {
               select: {
                 id: true,
+                firstName: true,
+                lastName: true,
                 email: true,
                 phone: true,
                 role: true,
@@ -251,11 +624,22 @@ export class ContractService {
       include: {
         lease: {
           include: {
-            property: true,
+            property: {
+              include: {
+                address: true,
+                images: {
+                  orderBy: {
+                    isPrimary: 'desc',
+                  },
+                },
+              },
+            },
             tenant: true,
             owner: {
               select: {
                 id: true,
+                firstName: true,
+                lastName: true,
                 email: true,
                 phone: true,
                 role: true,
@@ -372,6 +756,8 @@ export class ContractService {
         lease: {
           include: {
             tenant: true,
+            property: true,
+            owner: true,
           },
         },
       },
@@ -401,11 +787,122 @@ export class ContractService {
     // Determine who is signing
     const signerUserId = signUserId || userId;
 
-    return this.prisma.contract.update({
+    // Update contract
+    const updatedContract = await this.prisma.contract.update({
       where: { id },
       data: {
         signedAt: new Date(),
         userId: signerUserId,
+      },
+      include: {
+        lease: {
+          include: {
+            property: true,
+            tenant: true,
+            owner: {
+              select: {
+                id: true,
+                email: true,
+                phone: true,
+                role: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
+          },
+        },
+        creator: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    // Envoyer des notifications au locataire et au propriétaire
+    try {
+      // Notification au locataire
+      if (updatedContract.lease.tenant.userId) {
+        await this.notificationService.create({
+          userId: updatedContract.lease.tenant.userId,
+          title: 'Contrat de bail signé',
+          message: `Le contrat de bail pour "${updatedContract.lease.property.title}" a été signé. Vous pouvez maintenant le consulter dans l'onglet Contrats de bail.`,
+          type: 'contract_signed',
+          data: {
+            contractId: updatedContract.id,
+            leaseId: updatedContract.leaseId,
+            propertyTitle: updatedContract.lease.property.title,
+            propertyId: updatedContract.lease.property.id,
+          },
+        });
+      }
+
+      // Notification au propriétaire
+      await this.notificationService.create({
+        userId: updatedContract.lease.ownerId,
+        title: 'Contrat de bail signé',
+        message: `Le contrat de bail pour "${updatedContract.lease.property.title}" a été signé. Le locataire peut maintenant consulter le contrat.`,
+        type: 'contract_signed',
+        data: {
+          contractId: updatedContract.id,
+          leaseId: updatedContract.leaseId,
+          propertyTitle: updatedContract.lease.property.title,
+          propertyId: updatedContract.lease.property.id,
+          tenantName:
+            `${updatedContract.lease.tenant.firstName || ''} ${updatedContract.lease.tenant.lastName || ''}`.trim() ||
+            updatedContract.lease.tenant.email,
+        },
+      });
+    } catch (error) {
+      console.error("Erreur lors de l'envoi des notifications:", error);
+      // Ne pas bloquer si l'envoi des notifications échoue
+    }
+
+    return updatedContract;
+  }
+
+  async unsign(id: string, userId: string, userRole: string) {
+    const contract = await this.prisma.contract.findUnique({
+      where: { id },
+      include: {
+        lease: {
+          include: {
+            tenant: true,
+          },
+        },
+      },
+    });
+
+    if (!contract) {
+      throw new NotFoundException('Contract not found');
+    }
+
+    // Check if not signed
+    if (!contract.signedAt) {
+      throw new BadRequestException('Contract is not signed');
+    }
+
+    // Only admin can unsign
+    if (userRole !== 'admin') {
+      throw new ForbiddenException('Only admin can unsign a contract');
+    }
+
+    return this.prisma.contract.update({
+      where: { id },
+      data: {
+        signedAt: null,
+        userId: null,
       },
       include: {
         lease: {
@@ -464,11 +961,13 @@ export class ContractService {
           'Only contract creator, property owner or admin can delete contract',
         );
       }
-    }
 
-    // Cannot delete signed contract
-    if (contract.signedAt) {
-      throw new BadRequestException('Cannot delete a signed contract');
+      // Cannot delete signed contract (except for admin)
+      if (contract.signedAt) {
+        throw new BadRequestException(
+          'Cannot delete a signed contract. Only admin can delete signed contracts.',
+        );
+      }
     }
 
     // Delete file from Cloudinary if exists
@@ -668,5 +1167,33 @@ export class ContractService {
     }
 
     return this.contractGenerator.generateContractPDF(leaseId);
+  }
+
+  // =============================
+  // DEBUG METHODS
+  // =============================
+  async findTenantByUserId(userId: string) {
+    return this.prisma.tenant.findFirst({
+      where: { userId },
+      include: {
+        leases: {
+          include: {
+            contract: true,
+          },
+        },
+      },
+    });
+  }
+
+  async findAllContractsDebug() {
+    return this.prisma.contract.findMany({
+      include: {
+        lease: {
+          include: {
+            tenant: true,
+          },
+        },
+      },
+    });
   }
 }

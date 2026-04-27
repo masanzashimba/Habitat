@@ -101,6 +101,16 @@ export class CreatePropertyDto {
   @Min(0)
   commissionMonths?: number;
 
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  commissionPercentage?: number;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  landSize?: number;
+
   @IsBoolean()
   @IsOptional()
   isFeatured?: boolean;
