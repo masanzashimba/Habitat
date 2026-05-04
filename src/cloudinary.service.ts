@@ -18,12 +18,30 @@ export class CloudinaryService {
   ): Promise<{ secure_url: string }> {
     return new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder: 'properties', public_id: filename.split('.')[0] },
+        {
+          folder: 'properties',
+          public_id: filename.split('.')[0],
+          // 🚀 Optimisations pour la vitesse
+          quality: 'auto:good', // Compression automatique intelligente
+          fetch_format: 'auto', // Format optimal automatique
+          flags: 'progressive', // Chargement progressif
+          transformation: [
+            { width: 1200, height: 800, crop: 'limit' }, // Limiter la taille max
+            { quality: 85 }, // Qualité optimisée
+          ],
+          // 🚀 Upload plus rapide
+          resource_type: 'image',
+          timeout: 60000, // 60s timeout
+        },
         (error, result) => {
-          if (error) return reject(error);
+          if (error) {
+            console.error('❌ Cloudinary upload error:', error);
+            return reject(error);
+          }
           resolve(result as { secure_url: string });
         },
       );
+
       streamifier.createReadStream(fileBuffer).pipe(uploadStream);
     });
   }

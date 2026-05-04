@@ -34,6 +34,8 @@ async function main() {
       role: Role.admin,
       isActive: true,
       phone: '+243123456789',
+      firstName: 'Simeon',
+      lastName: 'Masanza',
     },
   });
 
@@ -45,49 +47,37 @@ async function main() {
   // Optionnel: Créer quelques données de test supplémentaires
   console.log('\n🏠 Création de données de test...');
 
-  // Créer un propriétaire de test
+  // Créer un propriétaire de test (maintenant c'est un user avec role: user)
   const ownerPassword = await bcrypt.hash('password123', 10);
   const owner = await prisma.user.create({
     data: {
       email: 'owner@example.com',
       password: ownerPassword,
-      role: Role.owner,
+      role: Role.user,
       isActive: true,
       phone: '+243987654321',
+      firstName: 'Jean',
+      lastName: 'Dupont',
     },
   });
 
   console.log(`✅ Propriétaire de test créé: ${owner.email}`);
 
-  // Créer un utilisateur locataire de test
+  // Créer un utilisateur locataire de test (maintenant c'est un user avec role: user)
   const tenantUserPassword = await bcrypt.hash('password123', 10);
   const tenantUser = await prisma.user.create({
     data: {
       email: 'tenant@example.com',
       password: tenantUserPassword,
-      role: Role.tenant,
+      role: Role.user,
       isActive: true,
       phone: '+243555666777',
+      firstName: 'Marie',
+      lastName: 'Martin',
     },
   });
 
   console.log(`✅ Utilisateur locataire de test créé: ${tenantUser.email}`);
-
-  // Créer un profil de locataire lié à l'utilisateur
-  const tenant = await prisma.tenant.create({
-    data: {
-      firstName: 'Marie',
-      lastName: 'Martin',
-      email: 'marie.martin@example.com',
-      phone: '+243111222333',
-      ownerId: owner.id,
-      userId: tenantUser.id,
-    },
-  });
-
-  console.log(
-    `✅ Profil locataire créé: ${tenant.firstName} ${tenant.lastName}`,
-  );
 
   // Créer une propriété de test
   const property = await prisma.property.create({
@@ -104,7 +94,6 @@ async function main() {
       propertyType: PropertyType.APARTMENT,
       bedrooms: 3,
       bathrooms: 2,
-      maxGuests: 6,
     },
   });
 
@@ -116,7 +105,6 @@ async function main() {
       userId: admin.id,
       title: 'Bienvenue sur LogeMoi',
       message: 'Votre compte administrateur a été créé avec succès.',
-      type: 'welcome',
     },
   });
 
@@ -125,8 +113,8 @@ async function main() {
   console.log('\n🎉 Seeding terminé avec succès!');
   console.log('\n📋 Comptes créés:');
   console.log('   👑 Admin: simeonmasanza@gmail.com / Informatique12');
-  console.log('   🏠 Propriétaire: owner@example.com / password123');
-  console.log('   🏠 Locataire: tenant@example.com / password123');
+  console.log('   🏠 Propriétaire (user): owner@example.com / password123');
+  console.log('   🏠 Locataire (user): tenant@example.com / password123');
 }
 
 main()

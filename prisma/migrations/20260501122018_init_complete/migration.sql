@@ -1,8 +1,8 @@
 -- CreateEnum
-CREATE TYPE "public"."Role" AS ENUM ('admin', 'owner', 'tenant');
+CREATE TYPE "public"."Role" AS ENUM ('admin', 'user', 'owner', 'tenant');
 
 -- CreateEnum
-CREATE TYPE "public"."PropertyType" AS ENUM ('APARTMENT', 'HOUSE', 'STUDIO', 'VILLA', 'OFFICE', 'SHOP', 'WAREHOUSE', 'LAND');
+CREATE TYPE "public"."PropertyType" AS ENUM ('APARTMENT', 'HOUSE');
 
 -- CreateEnum
 CREATE TYPE "public"."PropertyStatus" AS ENUM ('available', 'reserved', 'rented');
@@ -11,7 +11,7 @@ CREATE TYPE "public"."PropertyStatus" AS ENUM ('available', 'reserved', 'rented'
 CREATE TYPE "public"."PropertyPurpose" AS ENUM ('A_LOUER', 'A_VENDRE');
 
 -- CreateEnum
-CREATE TYPE "public"."PriceUnit" AS ENUM ('PER_NIGHT', 'PER_WEEK', 'PER_MONTH', 'PER_YEAR', 'TOTAL');
+CREATE TYPE "public"."PriceUnit" AS ENUM ('PER_MONTH');
 
 -- CreateEnum
 CREATE TYPE "public"."BookingStatus" AS ENUM ('pending', 'confirmed', 'rejected', 'cancelled');
@@ -35,7 +35,7 @@ CREATE TABLE "public"."User" (
     "gender" TEXT,
     "birthDate" TIMESTAMP(3),
     "password" TEXT NOT NULL,
-    "role" "public"."Role" NOT NULL DEFAULT 'owner',
+    "role" "public"."Role" NOT NULL DEFAULT 'user',
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "isEmailVerified" BOOLEAN NOT NULL DEFAULT false,
     "isPhoneVerified" BOOLEAN NOT NULL DEFAULT false,
@@ -43,32 +43,12 @@ CREATE TABLE "public"."User" (
     "country" TEXT DEFAULT 'DRC',
     "city" TEXT DEFAULT 'Kinshasa',
     "address" TEXT,
-    "latitude" DOUBLE PRECISION,
-    "longitude" DOUBLE PRECISION,
     "companyName" TEXT,
     "companyId" TEXT,
-    "passwordChangedAt" TIMESTAMP(3),
-    "failedLoginAttempts" INTEGER NOT NULL DEFAULT 0,
-    "lockedUntil" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "public"."Tenant" (
-    "id" TEXT NOT NULL,
-    "firstName" TEXT,
-    "lastName" TEXT,
-    "email" TEXT,
-    "phone" TEXT,
-    "ownerId" TEXT NOT NULL,
-    "userId" TEXT,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Tenant_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -85,18 +65,22 @@ CREATE TABLE "public"."Property" (
     "currency" "public"."Currency" NOT NULL DEFAULT 'CDF',
     "status" "public"."PropertyStatus" NOT NULL DEFAULT 'available',
     "purpose" "public"."PropertyPurpose" NOT NULL DEFAULT 'A_LOUER',
-    "maxGuests" INTEGER,
     "bedrooms" INTEGER,
     "beds" INTEGER,
     "bathrooms" INTEGER,
     "kitchens" INTEGER,
     "livingRooms" INTEGER,
-    "otherRooms" TEXT,
-    "isFeatured" BOOLEAN NOT NULL DEFAULT false,
-    "isVerified" BOOLEAN NOT NULL DEFAULT false,
-    "discount" INTEGER,
+    "otherRooms" INTEGER,
+    "maxGuests" INTEGER,
+    "landSize" DECIMAL(12,2),
+    "securityDepositMonths" INTEGER DEFAULT 1,
+    "commissionMonths" INTEGER DEFAULT 1,
+    "commissionPercentage" DECIMAL(5,2),
+    "discount" DECIMAL(5,2),
     "paymentType" TEXT,
     "specialNotes" TEXT,
+    "isFeatured" BOOLEAN NOT NULL DEFAULT false,
+    "isVerified" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -121,8 +105,8 @@ CREATE TABLE "public"."PropertyAddress" (
     "quartier" TEXT NOT NULL,
     "avenue" TEXT NOT NULL,
     "number" TEXT,
-    "city" TEXT,
-    "province" TEXT,
+    "city" TEXT DEFAULT 'Kinshasa',
+    "province" TEXT DEFAULT 'Kinshasa',
     "latitude" DOUBLE PRECISION,
     "longitude" DOUBLE PRECISION,
 
@@ -154,7 +138,6 @@ CREATE TABLE "public"."Review" (
     "rating" INTEGER NOT NULL,
     "comment" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Review_pkey" PRIMARY KEY ("id")
 );
@@ -164,7 +147,6 @@ CREATE TABLE "public"."Favorite" (
     "id" TEXT NOT NULL,
     "propertyId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Favorite_pkey" PRIMARY KEY ("id")
 );
@@ -173,7 +155,7 @@ CREATE TABLE "public"."Favorite" (
 CREATE TABLE "public"."Booking" (
     "id" TEXT NOT NULL,
     "propertyId" TEXT NOT NULL,
-    "userId" TEXT,
+    "userId" TEXT NOT NULL,
     "tenantId" TEXT,
     "startDate" TIMESTAMP(3) NOT NULL,
     "endDate" TIMESTAMP(3) NOT NULL,
@@ -186,18 +168,6 @@ CREATE TABLE "public"."Booking" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Booking_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "public"."TemporaryBlock" (
-    "id" TEXT NOT NULL,
-    "propertyId" TEXT NOT NULL,
-    "startDate" TIMESTAMP(3) NOT NULL,
-    "endDate" TIMESTAMP(3) NOT NULL,
-    "sessionId" TEXT NOT NULL,
-    "expiresAt" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "TemporaryBlock_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -247,33 +217,49 @@ CREATE TABLE "public"."Notification" (
 );
 
 -- CreateTable
+CREATE TABLE "public"."RefreshToken" (
+    "id" TEXT NOT NULL,
+    "token" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "isRevoked" BOOLEAN NOT NULL DEFAULT false,
+    "userAgent" TEXT,
+    "ipAddress" TEXT,
+    "replacedBy" TEXT,
+    "revokedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "public"."AdminActionLog" (
     "id" TEXT NOT NULL,
     "adminId" TEXT NOT NULL,
     "action" TEXT NOT NULL,
-    "entityType" TEXT NOT NULL,
-    "entityId" TEXT NOT NULL,
+    "entity" TEXT NOT NULL,
+    "entityId" TEXT,
+    "entityType" TEXT,
     "description" TEXT,
+    "details" JSONB,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "AdminActionLog_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "public"."RefreshToken" (
+CREATE TABLE "public"."TemporaryBlock" (
     "id" TEXT NOT NULL,
-    "token" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "userAgent" TEXT,
-    "ipAddress" TEXT,
+    "propertyId" TEXT NOT NULL,
+    "startDate" TIMESTAMP(3) NOT NULL,
+    "endDate" TIMESTAMP(3) NOT NULL,
     "expiresAt" TIMESTAMP(3) NOT NULL,
-    "isRevoked" BOOLEAN NOT NULL DEFAULT false,
-    "revokedAt" TIMESTAMP(3),
-    "replacedBy" TEXT,
+    "sessionId" TEXT,
+    "reason" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "TemporaryBlock_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -289,28 +275,16 @@ CREATE INDEX "User_email_idx" ON "public"."User"("email");
 CREATE INDEX "User_phone_idx" ON "public"."User"("phone");
 
 -- CreateIndex
-CREATE INDEX "User_role_idx" ON "public"."User"("role");
-
--- CreateIndex
 CREATE INDEX "User_city_idx" ON "public"."User"("city");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Tenant_userId_key" ON "public"."Tenant"("userId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Property_slug_key" ON "public"."Property"("slug");
 
 -- CreateIndex
-CREATE INDEX "Property_status_idx" ON "public"."Property"("status");
-
--- CreateIndex
 CREATE INDEX "Property_userId_idx" ON "public"."Property"("userId");
 
 -- CreateIndex
-CREATE INDEX "Property_slug_idx" ON "public"."Property"("slug");
-
--- CreateIndex
-CREATE INDEX "PropertyImage_propertyId_idx" ON "public"."PropertyImage"("propertyId");
+CREATE INDEX "Property_status_idx" ON "public"."Property"("status");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PropertyAddress_propertyId_key" ON "public"."PropertyAddress"("propertyId");
@@ -319,64 +293,37 @@ CREATE UNIQUE INDEX "PropertyAddress_propertyId_key" ON "public"."PropertyAddres
 CREATE UNIQUE INDEX "Amenity_name_key" ON "public"."Amenity"("name");
 
 -- CreateIndex
-CREATE INDEX "Amenity_name_idx" ON "public"."Amenity"("name");
-
--- CreateIndex
 CREATE UNIQUE INDEX "PropertyAmenity_propertyId_amenityId_key" ON "public"."PropertyAmenity"("propertyId", "amenityId");
-
--- CreateIndex
-CREATE INDEX "Review_propertyId_idx" ON "public"."Review"("propertyId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Review_propertyId_userId_key" ON "public"."Review"("propertyId", "userId");
 
 -- CreateIndex
-CREATE INDEX "Favorite_userId_idx" ON "public"."Favorite"("userId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Favorite_propertyId_userId_key" ON "public"."Favorite"("propertyId", "userId");
 
 -- CreateIndex
-CREATE INDEX "Booking_propertyId_status_idx" ON "public"."Booking"("propertyId", "status");
+CREATE INDEX "Booking_propertyId_idx" ON "public"."Booking"("propertyId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Booking_propertyId_startDate_endDate_key" ON "public"."Booking"("propertyId", "startDate", "endDate");
+CREATE INDEX "Booking_userId_idx" ON "public"."Booking"("userId");
 
 -- CreateIndex
-CREATE INDEX "TemporaryBlock_propertyId_startDate_endDate_idx" ON "public"."TemporaryBlock"("propertyId", "startDate", "endDate");
-
--- CreateIndex
-CREATE INDEX "TemporaryBlock_expiresAt_idx" ON "public"."TemporaryBlock"("expiresAt");
+CREATE INDEX "Booking_tenantId_idx" ON "public"."Booking"("tenantId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Lease_bookingId_key" ON "public"."Lease"("bookingId");
 
 -- CreateIndex
+CREATE INDEX "Lease_tenantId_idx" ON "public"."Lease"("tenantId");
+
+-- CreateIndex
+CREATE INDEX "Lease_ownerId_idx" ON "public"."Lease"("ownerId");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "Contract_leaseId_key" ON "public"."Contract"("leaseId");
 
 -- CreateIndex
-CREATE INDEX "Notification_userId_isRead_idx" ON "public"."Notification"("userId", "isRead");
-
--- CreateIndex
-CREATE INDEX "AdminActionLog_adminId_idx" ON "public"."AdminActionLog"("adminId");
-
--- CreateIndex
 CREATE UNIQUE INDEX "RefreshToken_token_key" ON "public"."RefreshToken"("token");
-
--- CreateIndex
-CREATE INDEX "RefreshToken_userId_idx" ON "public"."RefreshToken"("userId");
-
--- CreateIndex
-CREATE INDEX "RefreshToken_token_idx" ON "public"."RefreshToken"("token");
-
--- CreateIndex
-CREATE INDEX "RefreshToken_expiresAt_idx" ON "public"."RefreshToken"("expiresAt");
-
--- AddForeignKey
-ALTER TABLE "public"."Tenant" ADD CONSTRAINT "Tenant_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "public"."Tenant" ADD CONSTRAINT "Tenant_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Property" ADD CONSTRAINT "Property_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -409,25 +356,22 @@ ALTER TABLE "public"."Favorite" ADD CONSTRAINT "Favorite_userId_fkey" FOREIGN KE
 ALTER TABLE "public"."Booking" ADD CONSTRAINT "Booking_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "public"."Property"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Booking" ADD CONSTRAINT "Booking_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "public"."Booking" ADD CONSTRAINT "Booking_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Booking" ADD CONSTRAINT "Booking_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "public"."Tenant"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "public"."Booking" ADD CONSTRAINT "Booking_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Booking" ADD CONSTRAINT "Booking_validatedById_fkey" FOREIGN KEY ("validatedById") REFERENCES "public"."User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."TemporaryBlock" ADD CONSTRAINT "TemporaryBlock_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "public"."Property"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Lease" ADD CONSTRAINT "Lease_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "public"."Property"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Lease" ADD CONSTRAINT "Lease_bookingId_fkey" FOREIGN KEY ("bookingId") REFERENCES "public"."Booking"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."Lease" ADD CONSTRAINT "Lease_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "public"."Property"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "public"."Lease" ADD CONSTRAINT "Lease_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "public"."Tenant"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "public"."Lease" ADD CONSTRAINT "Lease_tenantId_fkey" FOREIGN KEY ("tenantId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."Lease" ADD CONSTRAINT "Lease_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -445,7 +389,10 @@ ALTER TABLE "public"."Contract" ADD CONSTRAINT "Contract_userId_fkey" FOREIGN KE
 ALTER TABLE "public"."Notification" ADD CONSTRAINT "Notification_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "public"."RefreshToken" ADD CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "public"."AdminActionLog" ADD CONSTRAINT "AdminActionLog_adminId_fkey" FOREIGN KEY ("adminId") REFERENCES "public"."User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "public"."RefreshToken" ADD CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "public"."TemporaryBlock" ADD CONSTRAINT "TemporaryBlock_propertyId_fkey" FOREIGN KEY ("propertyId") REFERENCES "public"."Property"("id") ON DELETE CASCADE ON UPDATE CASCADE;

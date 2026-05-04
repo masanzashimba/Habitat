@@ -57,14 +57,6 @@ export class BookingController {
     return this.bookingService.findByUser(userId);
   }
 
-  @Get('tenant/:tenantId')
-  findByTenant(
-    @Param('tenantId') tenantId: string,
-    @CurrentUser('userId') userId: string,
-    @CurrentUser('role') userRole: string,
-  ) {
-    return this.bookingService.findByTenant(tenantId, userId, userRole);
-  }
 
   @Get('relations/owners')
   getMyOwnerRelations(@CurrentUser('userId') userId: string) {

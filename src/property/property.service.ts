@@ -42,21 +42,86 @@ export class PropertyService {
       'bathrooms',
       'kitchens',
       'livingRooms',
+      'otherRooms',
+      'discount',
+      'securityDepositMonths',
+      'commissionMonths',
+    ];
+
+    const decimalFields = [
+      'price',
+      'landSize',
+      'commissionPercentage',
       'discount',
     ];
 
     const boolFields = ['isFeatured', 'isVerified'];
 
     intFields.forEach((field) => {
-      if (dto[field] !== undefined) dto[field] = Number(dto[field]);
+      if (
+        dto[field] !== undefined &&
+        dto[field] !== null &&
+        dto[field] !== ''
+      ) {
+        dto[field] = Number(dto[field]);
+      }
+    });
+
+    decimalFields.forEach((field) => {
+      if (
+        dto[field] !== undefined &&
+        dto[field] !== null &&
+        dto[field] !== ''
+      ) {
+        dto[field] = Number(dto[field]);
+      }
     });
 
     boolFields.forEach((field) => {
-      if (dto[field] !== undefined)
+      if (dto[field] !== undefined) {
         dto[field] = dto[field] === 'true' || dto[field] === true;
+      }
     });
 
     return dto;
+  }
+
+  // 🔥 FILTER ALLOWED FIELDS
+  private filterAllowedFields(data: any) {
+    const allowedFields = [
+      'title',
+      'shortDescription',
+      'description',
+      'propertyType',
+      'price',
+      'priceUnit',
+      'currency',
+      'status',
+      'purpose',
+      'bedrooms',
+      'beds',
+      'bathrooms',
+      'kitchens',
+      'livingRooms',
+      'otherRooms',
+      'maxGuests',
+      'landSize',
+      'securityDepositMonths',
+      'commissionMonths',
+      'commissionPercentage',
+      'discount',
+      'paymentType',
+      'specialNotes',
+      'isFeatured',
+      'isVerified',
+    ];
+
+    return Object.keys(data)
+      .filter((key) => allowedFields.includes(key))
+      .reduce((obj, key) => {
+        obj[key] = data[key];
+        return obj;
+      }, {} as any);
   }
 
   // 🔥 CHECK OWNER
@@ -75,7 +140,7 @@ export class PropertyService {
   }
 
   // =============================
-  // CREATE
+  // CREATE - VERSION OPTIMISÉE
   // =============================
   async create(
     createPropertyDto: CreatePropertyDto,
@@ -94,17 +159,19 @@ export class PropertyService {
       );
     }
 
-    // 🔥 ÉTAPE 1: Créer la propriété dans une transaction rapide
+    // Filtrer uniquement les champs qui existent dans le schéma Property
+    const filteredPropertyData = this.filterAllowedFields(propertyData);
+
+    // 🚀 ÉTAPE 1: Créer la propriété dans une transaction ultra-rapide
     const property = await this.prisma.$transaction(
       async (tx) => {
         const createdProperty = await tx.property.create({
           data: {
-            ...propertyData,
+            ...filteredPropertyData,
             slug: this.generateSlug(propertyData.title),
             user: {
               connect: { id: userId },
             },
-
             address: {
               create: {
                 commune: address.commune,
@@ -121,7 +188,6 @@ export class PropertyService {
                   : undefined,
               },
             },
-
             ...(amenities && {
               amenities: {
                 create: amenities.map((name) => ({
@@ -135,49 +201,106 @@ export class PropertyService {
               },
             }),
           },
+          // 🚀 Inclure les relations nécessaires directement
+          include: {
+            address: true,
+            amenities: { include: { amenity: true } },
+          },
         });
 
         return createdProperty;
       },
       {
-        maxWait: 10000, // Attendre max 10s pour acquérir la transaction
-        timeout: 15000, // Timeout de 15s pour la transaction
+        maxWait: 5000, // Réduire à 5s
+        timeout: 10000, // Réduire à 10s
       },
     );
 
-    // 🔥 ÉTAPE 2: Uploader les images en parallèle (hors transaction)
-    try {
-      const uploadPromises = files.map(async (file, index) => {
-        const upload = await this.cloudinaryService.uploadImageBuffer(
-          file.buffer,
-          file.originalname,
-        );
+    // 🚀 ÉTAPE 2: Lancer l'upload d'images en parallèle SANS ATTENDRE
+    const imageUploadPromise = this.uploadImagesAsync(files, property.id);
 
-        return this.prisma.propertyImage.create({
-          data: {
-            imageUrl: upload.secure_url,
-            propertyId: property.id,
-            isPrimary: index === 0,
-          },
-        });
+    // 🚀 ÉTAPE 3: Lancer les notifications en arrière-plan SANS ATTENDRE
+    const notificationPromise = this.sendNotificationsAsync(
+      userId,
+      property.id,
+      propertyData.title,
+      propertyData.propertyType,
+    );
+
+    // 🚀 ÉTAPE 4: Retourner immédiatement la propriété (sans attendre images/notifications)
+    const baseProperty = {
+      ...property,
+      images: [], // Les images seront ajoutées en arrière-plan
+    };
+
+    // 🔥 Gérer les erreurs d'upload en arrière-plan
+    imageUploadPromise.catch((error) => {
+      console.error('❌ Erreur upload images (arrière-plan):', error);
+      // Optionnel: Marquer la propriété comme ayant des problèmes d'images
+    });
+
+    // 🔥 Gérer les erreurs de notifications en arrière-plan
+    notificationPromise.catch((error) => {
+      console.error('❌ Erreur notifications (arrière-plan):', error);
+    });
+
+    return baseProperty;
+  }
+
+  // 🚀 Méthode pour upload d'images en arrière-plan
+  private async uploadImagesAsync(
+    files: Express.Multer.File[],
+    propertyId: string,
+  ): Promise<void> {
+    try {
+      // Upload toutes les images en parallèle
+      const uploadPromises = files.map(async (file, index) => {
+        try {
+          const upload = await this.cloudinaryService.uploadImageBuffer(
+            file.buffer,
+            file.originalname,
+          );
+
+          return this.prisma.propertyImage.create({
+            data: {
+              imageUrl: upload.secure_url,
+              propertyId: propertyId,
+              isPrimary: index === 0,
+            },
+          });
+        } catch (error) {
+          console.error(`❌ Erreur upload image ${index + 1}:`, error);
+          throw error;
+        }
       });
 
-      // Attendre que tous les uploads soient terminés
       await Promise.all(uploadPromises);
+      console.log(`✅ ${files.length} images uploadées avec succès`);
     } catch (error) {
-      // Si l'upload échoue, supprimer la propriété créée
-      await this.prisma.property.delete({ where: { id: property.id } });
-      throw new BadRequestException(
-        `Erreur lors de l'upload des images: ${error.message}`,
-      );
+      console.error('❌ Erreur critique upload images:', error);
+
+      // En cas d'erreur critique, marquer la propriété comme ayant des problèmes
+      await this.prisma.property.update({
+        where: { id: propertyId },
+        data: {
+          status: 'available', // Garder disponible mais noter le problème
+          // Optionnel: ajouter un champ pour marquer les problèmes d'images
+        },
+      });
+
+      throw error;
     }
+  }
 
-    // 🔥 ÉTAPE 3: Retourner la propriété complète avec les images
-    const completeProperty = await this.findOne(property.id);
-
-    // 🔥 ÉTAPE 4: Envoyer les notifications
+  // 🚀 Méthode pour notifications en arrière-plan
+  private async sendNotificationsAsync(
+    userId: string,
+    propertyId: string,
+    propertyTitle: string,
+    propertyType: string,
+  ): Promise<void> {
     try {
-      // Get owner information
+      // Récupérer les infos utilisateur
       const owner = await this.prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -192,28 +315,28 @@ export class PropertyService {
           owner.email
         : 'Propriétaire';
 
-      // Notification pour le créateur
-      await this.notificationService.createPropertyCreatedNotification(
-        userId,
-        property.id,
-        propertyData.title,
-        propertyData.type,
-      );
+      // Envoyer les notifications en parallèle
+      await Promise.all([
+        this.notificationService.createPropertyCreatedNotification(
+          userId,
+          propertyId,
+          propertyTitle,
+          propertyType,
+        ),
+        this.notificationService.createPropertyCreatedAdminNotification(
+          propertyId,
+          propertyTitle,
+          propertyType,
+          ownerName,
+          owner?.email || '',
+        ),
+      ]);
 
-      // Notification pour les admins
-      await this.notificationService.createPropertyCreatedAdminNotification(
-        property.id,
-        propertyData.title,
-        propertyData.type,
-        ownerName,
-        owner?.email || '',
-      );
-    } catch (notificationError) {
-      // Log error but don't fail the property creation
-      console.error('Error sending notifications:', notificationError);
+      console.log('✅ Notifications envoyées avec succès');
+    } catch (error) {
+      console.error('❌ Erreur envoi notifications:', error);
+      // Ne pas faire échouer la création pour des notifications
     }
-
-    return completeProperty;
   }
 
   // =============================
@@ -358,10 +481,13 @@ export class PropertyService {
     const { address, amenities, ...propertyData } =
       this.transformFormData(updatePropertyDto);
 
+    // Filtrer uniquement les champs qui existent dans le schéma Property
+    const filteredPropertyData = this.filterAllowedFields(propertyData);
+
     const property = await this.prisma.property.update({
       where: { id },
       data: {
-        ...propertyData,
+        ...filteredPropertyData,
 
         ...(address && {
           address: {
@@ -487,23 +613,6 @@ export class PropertyService {
     });
 
     return propertyIds;
-  }
-
-  // =============================
-  // FIND USER PROPERTIES
-  // =============================
-  async findUserProperties(userId: string, includeUnavailable: boolean = true) {
-    return this.prisma.property.findMany({
-      where: { userId },
-      include: {
-        images: true,
-        address: true,
-        reviews: true,
-        amenities: { include: { amenity: true } },
-        favorites: true, // Retourner TOUS les favoris pour compter
-      },
-      orderBy: { createdAt: 'desc' },
-    });
   }
 
   // =============================

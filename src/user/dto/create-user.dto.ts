@@ -5,7 +5,6 @@ import {
   IsEnum,
   IsBoolean,
   IsDateString,
-  IsNumber,
   MinLength,
   Matches,
 } from 'class-validator';
@@ -75,14 +74,6 @@ export class CreateUserDto {
   @IsOptional()
   @IsString({ message: "L'adresse doit être une chaîne de caractères" })
   address?: string;
-
-  @IsOptional()
-  @IsNumber({}, { message: 'La latitude doit être un nombre' })
-  latitude?: number;
-
-  @IsOptional()
-  @IsNumber({}, { message: 'La longitude doit être un nombre' })
-  longitude?: number;
 
   // =====================
   // BUSINESS

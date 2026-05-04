@@ -33,6 +33,7 @@ export class AdminActionLogService {
       data: {
         adminId,
         action,
+        entity: entityType, // entity est requis, entityType est optionnel
         entityType,
         entityId,
         description,

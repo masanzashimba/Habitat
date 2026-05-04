@@ -12,11 +12,6 @@ export class CreateBookingDto {
   @IsUUID()
   @IsNotEmpty({ message: "L'ID de la propriété est requis" })
   propertyId: string;
-
-  @IsOptional()
-  @IsUUID()
-  tenantId?: string;
-
   @IsDateString({}, { message: 'La date de début doit être valide' })
   @IsNotEmpty({ message: 'La date de début est requise' })
   startDate: string;

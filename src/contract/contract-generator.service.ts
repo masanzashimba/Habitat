@@ -26,11 +26,7 @@ export class ContractGeneratorService {
             user: true,
           },
         },
-        tenant: {
-          include: {
-            user: true,
-          },
-        },
+        tenant: true,
         owner: true,
       },
     });
@@ -62,21 +58,15 @@ export class ContractGeneratorService {
     };
 
     // Préparer les données du locataire
-    const tenantUser = lease.tenant.user;
     const tenant = {
       fullName:
         lease.tenant.firstName && lease.tenant.lastName
           ? `${lease.tenant.firstName} ${lease.tenant.lastName}`
-          : tenantUser
-            ? `${tenantUser.firstName || ''} ${tenantUser.lastName || ''}`.trim()
-            : 'Non spécifié',
-      email: lease.tenant.email || tenantUser?.email || 'Non spécifié',
-      phone: lease.tenant.phone || tenantUser?.phone || undefined,
-      address: lease.tenant.address || tenantUser?.address || undefined,
-      city: lease.tenant.city || tenantUser?.city || 'Kinshasa',
-      nationalId: lease.tenant.nationalId || undefined,
-      occupation: lease.tenant.occupation || undefined,
-      employer: lease.tenant.employer || undefined,
+          : 'Non spécifié',
+      email: lease.tenant.email || 'Non spécifié',
+      phone: lease.tenant.phone || undefined,
+      address: lease.tenant.address || undefined,
+      city: lease.tenant.city || 'Kinshasa',
     };
 
     // Préparer les données de la propriété

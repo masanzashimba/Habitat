@@ -42,7 +42,8 @@ export class UserService {
           select: {
             properties: true,
             bookings: true,
-            ownedTenants: true,
+            leasesAsTenant: true,
+            leasesAsOwner: true,
           },
         },
       },
@@ -87,21 +88,12 @@ export class UserService {
         country: true,
         city: true,
         address: true,
-        latitude: true,
-        longitude: true,
 
         // =====================
         // BUSINESS
         // =====================
         companyName: true,
         companyId: true,
-
-        // =====================
-        // SECURITÉ
-        // =====================
-        passwordChangedAt: true,
-        failedLoginAttempts: true,
-        lockedUntil: true,
 
         // =====================
         // META
@@ -116,7 +108,8 @@ export class UserService {
           select: {
             properties: true,
             bookings: true,
-            ownedTenants: true,
+            leasesAsOwner: true,
+            leasesAsTenant: true,
             reviews: true,
             favorites: true,
             notifications: {
@@ -159,30 +152,6 @@ export class UserService {
             currency: true,
           },
         },
-        ownedTenants: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-          },
-        },
-        tenantProfile: {
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            email: true,
-            phone: true,
-            owner: {
-              select: {
-                id: true,
-                email: true,
-              },
-            },
-          },
-        },
         bookings: {
           select: {
             id: true,
@@ -193,6 +162,15 @@ export class UserService {
           },
         },
         leasesAsOwner: {
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            status: true,
+            rentAmount: true,
+          },
+        },
+        leasesAsTenant: {
           select: {
             id: true,
             startDate: true,
@@ -267,7 +245,7 @@ export class UserService {
         // COMPTE
         // =====================
         password: hashedPassword,
-        role: dto.role ?? Role.owner,
+        role: dto.role ?? Role.user,
         isActive: dto.isActive ?? true,
 
         // =====================
@@ -276,8 +254,6 @@ export class UserService {
         country: dto.country ?? 'DRC',
         city: dto.city ?? 'Kinshasa',
         address: dto.address ?? null,
-        latitude: dto.latitude ?? null,
-        longitude: dto.longitude ?? null,
 
         // =====================
         // BUSINESS
@@ -351,8 +327,6 @@ export class UserService {
     if (dto.country !== undefined) data.country = dto.country;
     if (dto.city !== undefined) data.city = dto.city;
     if (dto.address !== undefined) data.address = dto.address;
-    if (dto.latitude !== undefined) data.latitude = dto.latitude;
-    if (dto.longitude !== undefined) data.longitude = dto.longitude;
 
     // =====================
     // BUSINESS
@@ -372,7 +346,6 @@ export class UserService {
     // Si un nouveau mot de passe est fourni
     if (dto.newPassword) {
       data.password = await bcrypt.hash(dto.newPassword, 10);
-      data.passwordChangedAt = new Date();
     }
 
     // Mettre à jour l'utilisateur
@@ -450,18 +423,18 @@ export class UserService {
       where: { id },
       include: {
         properties: true,
-        ownedTenants: true,
         leasesAsOwner: true,
+        leasesAsTenant: true,
       },
     });
 
     if (
       userWithRelations?.properties.length ||
-      userWithRelations?.ownedTenants.length ||
-      userWithRelations?.leasesAsOwner.length
+      userWithRelations?.leasesAsOwner.length ||
+      userWithRelations?.leasesAsTenant.length
     ) {
       throw new BadRequestException(
-        'Impossible de supprimer cet utilisateur car il a des relations actives (propriétés, locataires, baux)',
+        'Impossible de supprimer cet utilisateur car il a des relations actives (propriétés, baux)',
       );
     }
 
@@ -564,17 +537,8 @@ export class UserService {
   async getUserLeases(userId: string) {
     await this.getUserById(userId);
 
-    // Trouver le profil tenant de l'utilisateur
-    const tenantProfile = await this.prisma.tenant.findUnique({
-      where: { userId },
-    });
-
-    if (!tenantProfile) {
-      return [];
-    }
-
     return this.prisma.lease.findMany({
-      where: { tenantId: tenantProfile.id },
+      where: { tenantId: userId },
       include: {
         property: true,
         owner: {
@@ -605,58 +569,143 @@ export class UserService {
   }
 
   // =========================
+  // GET OWNER TENANTS
+  // =========================
+  async getOwnerTenants(ownerId: string, requestingUserId: string, userRole: string) {
+    // Vérifier que l'utilisateur existe
+    await this.getUserById(ownerId);
+
+    // Seul le propriétaire lui-même ou un admin peut voir les locataires
+    if (userRole !== Role.admin && ownerId !== requestingUserId) {
+      throw new BadRequestException(
+        'Accès refusé : vous ne pouvez consulter que vos propres locataires',
+      );
+    }
+
+    // Récupérer tous les baux où l'utilisateur est propriétaire
+    const leases = await this.prisma.lease.findMany({
+      where: {
+        ownerId: ownerId,
+      },
+      include: {
+        tenant: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            profileImage: true,
+            address: true,
+            city: true,
+            isActive: true,
+            createdAt: true,
+          },
+        },
+        property: {
+          select: {
+            id: true,
+            title: true,
+            address: {
+              select: {
+                commune: true,
+                quartier: true,
+                avenue: true,
+              },
+            },
+          },
+        },
+        contract: {
+          select: {
+            id: true,
+            signedAt: true,
+            fileUrl: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Grouper les baux par locataire
+    const tenantsMap = new Map();
+
+    leases.forEach((lease) => {
+      const tenantId = lease.tenant.id;
+
+      if (!tenantsMap.has(tenantId)) {
+        tenantsMap.set(tenantId, {
+          id: tenantId,
+          firstName: lease.tenant.firstName,
+          lastName: lease.tenant.lastName,
+          email: lease.tenant.email,
+          phone: lease.tenant.phone,
+          profileImage: lease.tenant.profileImage,
+          address: lease.tenant.address,
+          city: lease.tenant.city,
+          isActive: lease.tenant.isActive,
+          createdAt: lease.tenant.createdAt,
+          leases: [],
+        });
+      }
+
+      // Ajouter le bail au locataire
+      tenantsMap.get(tenantId).leases.push({
+        id: lease.id,
+        startDate: lease.startDate,
+        endDate: lease.endDate,
+        rentAmount: lease.rentAmount,
+        currency: lease.currency,
+        deposit: lease.deposit,
+        status: lease.status,
+        property: lease.property,
+        contract: lease.contract,
+      });
+    });
+
+    // Convertir la Map en tableau
+    return Array.from(tenantsMap.values());
+  }
+
+  // =========================
   // GET USER STATS
   // =========================
   async getUserStats(userId: string) {
     const user = await this.getUserById(userId);
 
-    const stats: any = {
+    // Stats communes à tous les utilisateurs (propriétaire ET locataire)
+    const [
+      propertiesCount,
+      activeLeasesAsOwnerCount,
+      bookingsCount,
+      activeLeasesAsTenantCount,
+      unreadNotifications,
+    ] = await Promise.all([
+      this.prisma.property.count({ where: { userId } }),
+      this.prisma.lease.count({ where: { ownerId: userId, status: 'active' } }),
+      this.prisma.booking.count({ where: { userId } }),
+      this.prisma.lease.count({ where: { tenantId: userId, status: 'active' } }),
+      this.prisma.notification.count({ where: { userId, isRead: false } }),
+    ]);
+
+    // Locataires uniques (pour les biens dont l'utilisateur est propriétaire)
+    const uniqueTenants = await this.prisma.lease.findMany({
+      where: { ownerId: userId },
+      select: { tenantId: true },
+      distinct: ['tenantId'],
+    });
+
+    return {
       userId: user.id,
       email: user.email,
       role: user.role,
+      properties: propertiesCount,
+      tenants: uniqueTenants.length,
+      activeLeasesAsOwner: activeLeasesAsOwnerCount,
+      bookings: bookingsCount,
+      activeLeasesAsTenant: activeLeasesAsTenantCount,
+      unreadNotifications,
     };
-
-    if (user.role === Role.owner) {
-      const [propertiesCount, tenantsCount, activeLeasesCount] =
-        await Promise.all([
-          this.prisma.property.count({ where: { userId: userId } }),
-          this.prisma.tenant.count({ where: { ownerId: userId } }),
-          this.prisma.lease.count({
-            where: { ownerId: userId, status: 'active' },
-          }),
-        ]);
-
-      stats.properties = propertiesCount;
-      stats.tenants = tenantsCount;
-      stats.activeLeases = activeLeasesCount;
-    }
-
-    if (user.role === Role.tenant) {
-      const tenantProfile = await this.prisma.tenant.findUnique({
-        where: { userId },
-      });
-
-      if (tenantProfile) {
-        const [bookingsCount, activeLeasesCount] = await Promise.all([
-          this.prisma.booking.count({
-            where: { tenantId: tenantProfile.id },
-          }),
-          this.prisma.lease.count({
-            where: { tenantId: tenantProfile.id, status: 'active' },
-          }),
-        ]);
-
-        stats.bookings = bookingsCount;
-        stats.activeLeases = activeLeasesCount;
-      }
-    }
-
-    const unreadNotifications = await this.prisma.notification.count({
-      where: { userId, isRead: false },
-    });
-
-    stats.unreadNotifications = unreadNotifications;
-
-    return stats;
   }
 }

@@ -21,7 +21,7 @@ export class LeaseService {
     const {
       bookingId,
       propertyId,
-      tenantId,
+      tenantId, // userId du locataire
       ownerId,
       startDate,
       endDate,
@@ -39,13 +39,13 @@ export class LeaseService {
       throw new NotFoundException('Property not found');
     }
 
-    // Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
+    // Verify tenant (user) exists
+    const tenant = await this.prisma.user.findUnique({
       where: { id: tenantId },
     });
 
     if (!tenant) {
-      throw new NotFoundException('Tenant not found');
+      throw new NotFoundException('Tenant (user) not found');
     }
 
     // Verify owner exists
@@ -88,7 +88,7 @@ export class LeaseService {
       data: {
         bookingId,
         propertyId,
-        tenantId,
+        tenantId, // userId du locataire
         ownerId,
         startDate: new Date(startDate),
         endDate: endDate ? new Date(endDate) : null,
@@ -98,7 +98,16 @@ export class LeaseService {
       },
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -113,15 +122,13 @@ export class LeaseService {
 
     // Send notifications
     try {
-      // Notify tenant if they have a user account
-      if (tenant.userId) {
-        await this.notificationService.createLeaseNotification(
-          tenant.userId,
-          lease.id,
-          'created',
-          property.title,
-        );
-      }
+      // Notify tenant
+      await this.notificationService.createLeaseNotification(
+        tenantId,
+        lease.id,
+        'created',
+        property.title,
+      );
 
       // Notify owner
       await this.notificationService.createLeaseNotification(
@@ -143,7 +150,7 @@ export class LeaseService {
       where: { id: bookingId },
       include: {
         property: true,
-        tenant: true,
+        user: true,
       },
     });
 
@@ -174,41 +181,23 @@ export class LeaseService {
       throw new BadRequestException('Lease already exists for this booking');
     }
 
-    // Determine tenantId
-    let tenantId = booking.tenantId;
-    if (!tenantId && booking.userId) {
-      // Try to find tenant by userId first (userId is unique)
-      const existingTenant = await this.prisma.tenant.findUnique({
-        where: {
-          userId: booking.userId,
-        },
-      });
-
-      if (existingTenant) {
-        // Tenant already exists, use it
-        tenantId = existingTenant.id;
-      } else {
-        // Create new tenant profile
-        const newTenant = await this.prisma.tenant.create({
-          data: {
-            userId: booking.userId,
-            ownerId: booking.property.userId,
-          },
-        });
-        tenantId = newTenant.id;
-      }
-    }
+    // Le tenantId est maintenant le userId de l'utilisateur qui a fait la réservation
+    const tenantId = booking.userId;
 
     if (!tenantId) {
       throw new BadRequestException('Cannot determine tenant for this booking');
     }
+
+    console.log(
+      `✅ Création du lease pour l'utilisateur ${booking.user.email} (ID: ${tenantId})`,
+    );
 
     // Create lease from booking
     return this.create(
       {
         bookingId,
         propertyId: booking.propertyId,
-        tenantId,
+        tenantId, // userId du locataire
         ownerId: booking.property.userId,
         startDate: booking.startDate.toISOString(),
         endDate: booking.endDate.toISOString(),
@@ -227,9 +216,7 @@ export class LeaseService {
     if (userRole === 'owner') {
       where.ownerId = userId;
     } else if (userRole === 'tenant') {
-      where.tenant = {
-        userId,
-      };
+      where.tenantId = userId; // tenantId est maintenant userId
     }
     // Admin sees all leases (no filter)
 
@@ -237,7 +224,19 @@ export class LeaseService {
       where,
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+            address: true,
+            city: true,
+            isActive: true,
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -260,7 +259,19 @@ export class LeaseService {
       where: { id },
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+            address: true,
+            city: true,
+            isActive: true,
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -281,7 +292,7 @@ export class LeaseService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = lease.ownerId === userId;
-      const isTenant = lease.tenant.userId === userId;
+      const isTenant = lease.tenantId === userId; // tenantId est maintenant userId
 
       if (!isOwner && !isTenant) {
         throw new ForbiddenException('Access denied to this lease');
@@ -330,8 +341,8 @@ export class LeaseService {
   }
 
   async findByTenant(tenantId: string, userId: string, userRole: string) {
-    // Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
+    // Verify tenant (user) exists
+    const tenant = await this.prisma.user.findUnique({
       where: { id: tenantId },
     });
 
@@ -340,21 +351,26 @@ export class LeaseService {
     }
 
     // Check access rights
-    if (userRole !== 'admin') {
-      const isOwner = tenant.ownerId === userId;
-      const isTenant = tenant.userId === userId;
-
-      if (!isOwner && !isTenant) {
-        throw new ForbiddenException(
-          'Access denied to view leases for this tenant',
-        );
-      }
+    if (userRole !== 'admin' && tenantId !== userId) {
+      throw new ForbiddenException(
+        'Access denied to view leases for this tenant',
+      );
     }
 
     return this.prisma.lease.findMany({
       where: { tenantId },
       include: {
         property: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -413,7 +429,14 @@ export class LeaseService {
       where: { id },
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
@@ -433,7 +456,16 @@ export class LeaseService {
       data: updateLeaseDto,
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -449,14 +481,12 @@ export class LeaseService {
 
     // Send notification
     try {
-      if (lease.tenant.userId) {
-        await this.notificationService.createLeaseNotification(
-          lease.tenant.userId,
-          lease.id,
-          'updated',
-          lease.property.title,
-        );
-      }
+      await this.notificationService.createLeaseNotification(
+        lease.tenantId, // tenantId est maintenant userId
+        lease.id,
+        'updated',
+        lease.property.title,
+      );
     } catch (error) {
       console.error('Failed to send lease update notification:', error);
     }
@@ -474,7 +504,14 @@ export class LeaseService {
       where: { id },
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
       },
     });
 
@@ -500,7 +537,16 @@ export class LeaseService {
       data: updateData,
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            phone: true,
+            profileImage: true,
+          },
+        },
         owner: {
           select: {
             id: true,
@@ -516,9 +562,9 @@ export class LeaseService {
 
     // Send notification if terminated
     try {
-      if (status === 'terminated' && lease.tenant.userId) {
+      if (status === 'terminated') {
         await this.notificationService.createLeaseNotification(
-          lease.tenant.userId,
+          lease.tenantId, // tenantId est maintenant userId
           lease.id,
           'terminated',
           lease.property.title,

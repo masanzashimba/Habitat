@@ -199,24 +199,24 @@ export class ContractController {
   // =============================
   // DEBUG ROUTE
   // =============================
-  @Get('debug/user-info')
-  async debugUserInfo(@CurrentUser('userId') userId: string) {
-    // Trouver le tenant associé à cet utilisateur
-    const tenant = await this.contractService.findTenantByUserId(userId);
-
-    // Trouver tous les contrats
-    const allContracts = await this.contractService.findAllContractsDebug();
-
-    return {
-      userId,
-      tenant,
-      totalContracts: allContracts.length,
-      contracts: allContracts.map((c) => ({
-        id: c.id,
-        leaseId: c.leaseId,
-        tenantId: c.lease.tenantId,
-        tenantUserId: c.lease.tenant.userId,
-      })),
-    };
-  }
+  // @Get('debug/user-info')
+  // async debugUserInfo(@CurrentUser('userId') userId: string) {
+  //   // Trouver le tenant associé à cet utilisateur
+  //   const tenant = await this.contractService.findTenantByUserId(userId);
+  //
+  //   // Trouver tous les contrats
+  //   const allContracts = await this.contractService.findAllContractsDebug();
+  //
+  //   return {
+  //     userId,
+  //     tenant,
+  //     totalContracts: allContracts.length,
+  //     contracts: allContracts.map((c) => ({
+  //       id: c.id,
+  //       leaseId: c.leaseId,
+  //       tenantId: c.lease.tenantId,
+  //       tenantUserId: c.lease.tenantId,
+  //     })),
+  //   };
+  // }
 }

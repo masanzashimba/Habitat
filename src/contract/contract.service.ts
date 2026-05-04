@@ -33,7 +33,14 @@ export class ContractService {
       where: { id: leaseId },
       include: {
         property: true,
-        tenant: true,
+        tenant: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
         contract: true,
       },
     });
@@ -45,31 +52,6 @@ export class ContractService {
     // Check if contract already exists for this lease
     if (lease.contract) {
       throw new BadRequestException('Contract already exists for this lease');
-    }
-
-    // 🔥 IMPORTANT: Associer le tenant à un utilisateur pour qu'il puisse voir le contrat
-    if (lease.tenant && !lease.tenant.userId) {
-      // Si le tenant n'a pas de userId, essayer de le trouver par email
-      if (lease.tenant.email) {
-        const tenantUser = await this.prisma.user.findUnique({
-          where: { email: lease.tenant.email },
-        });
-
-        if (tenantUser) {
-          // Associer le tenant à l'utilisateur
-          await this.prisma.tenant.update({
-            where: { id: lease.tenant.id },
-            data: { userId: tenantUser.id },
-          });
-          console.log(
-            `✅ Tenant ${lease.tenant.id} associé à l'utilisateur ${tenantUser.id}`,
-          );
-        } else {
-          console.warn(
-            `⚠️ Aucun utilisateur trouvé avec l'email ${lease.tenant.email}`,
-          );
-        }
-      }
     }
 
     // Verify creator exists
@@ -104,7 +86,16 @@ export class ContractService {
         lease: {
           include: {
             property: true,
-            tenant: true,
+            tenant: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                profileImage: true,
+              },
+            },
             owner: {
               select: {
                 id: true,
@@ -148,9 +139,7 @@ export class ContractService {
       };
     } else if (userRole === 'tenant') {
       where.lease = {
-        tenant: {
-          userId,
-        },
+        tenantId: userId,
       };
     }
     // Admin sees all contracts (no filter)
@@ -231,9 +220,7 @@ export class ContractService {
       };
     } else if (userRole === 'tenant') {
       where.lease = {
-        tenant: {
-          userId,
-        },
+        tenantId: userId,
       };
     }
     // Admin sees all signed contracts (no additional filter)
@@ -301,9 +288,7 @@ export class ContractService {
       };
     } else if (userRole === 'tenant') {
       where.lease = {
-        tenant: {
-          userId,
-        },
+        tenantId: userId,
       };
     }
     // Admin sees all unsigned contracts (no additional filter)
@@ -369,9 +354,7 @@ export class ContractService {
       };
     } else if (userRole === 'tenant') {
       baseWhere.lease = {
-        tenant: {
-          userId,
-        },
+        tenantId: userId,
       };
     }
     // Admin sees all contracts (no filter)
@@ -582,7 +565,7 @@ export class ContractService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = contract.lease.ownerId === userId;
-      const isTenant = contract.lease.tenant.userId === userId;
+      const isTenant = contract.lease.tenantId === userId;
       const isCreator = contract.createdBy === userId;
       const isContractUser = contract.userId === userId;
 
@@ -610,7 +593,7 @@ export class ContractService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = lease.ownerId === userId;
-      const isTenant = lease.tenant.userId === userId;
+      const isTenant = lease.tenantId === userId;
 
       if (!isOwner && !isTenant) {
         throw new ForbiddenException(
@@ -755,7 +738,14 @@ export class ContractService {
       include: {
         lease: {
           include: {
-            tenant: true,
+            tenant: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+              },
+            },
             property: true,
             owner: true,
           },
@@ -775,7 +765,7 @@ export class ContractService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = contract.lease.ownerId === userId;
-      const isTenant = contract.lease.tenant.userId === userId;
+      const isTenant = contract.lease.tenantId === userId; // tenantId est maintenant userId
 
       if (!isOwner && !isTenant) {
         throw new ForbiddenException(
@@ -798,7 +788,16 @@ export class ContractService {
         lease: {
           include: {
             property: true,
-            tenant: true,
+            tenant: {
+              select: {
+                id: true,
+                email: true,
+                firstName: true,
+                lastName: true,
+                phone: true,
+                profileImage: true,
+              },
+            },
             owner: {
               select: {
                 id: true,
@@ -833,20 +832,18 @@ export class ContractService {
     // Envoyer des notifications au locataire et au propriétaire
     try {
       // Notification au locataire
-      if (updatedContract.lease.tenant.userId) {
-        await this.notificationService.create({
-          userId: updatedContract.lease.tenant.userId,
-          title: 'Contrat de bail signé',
-          message: `Le contrat de bail pour "${updatedContract.lease.property.title}" a été signé. Vous pouvez maintenant le consulter dans l'onglet Contrats de bail.`,
-          type: 'contract_signed',
-          data: {
-            contractId: updatedContract.id,
-            leaseId: updatedContract.leaseId,
-            propertyTitle: updatedContract.lease.property.title,
-            propertyId: updatedContract.lease.property.id,
-          },
-        });
-      }
+      await this.notificationService.create({
+        userId: updatedContract.lease.tenantId, // tenantId est maintenant userId
+        title: 'Contrat de bail signé',
+        message: `Le contrat de bail pour "${updatedContract.lease.property.title}" a été signé. Vous pouvez maintenant le consulter dans l'onglet Contrats de bail.`,
+        type: 'contract_signed',
+        data: {
+          contractId: updatedContract.id,
+          leaseId: updatedContract.leaseId,
+          propertyTitle: updatedContract.lease.property.title,
+          propertyId: updatedContract.lease.property.id,
+        },
+      });
 
       // Notification au propriétaire
       await this.notificationService.create({
@@ -1128,7 +1125,7 @@ export class ContractService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = lease.ownerId === userId;
-      const isTenant = lease.tenant.userId === userId;
+      const isTenant = lease.tenantId === userId;
 
       if (!isOwner && !isTenant) {
         throw new ForbiddenException('Accès refusé pour voir ce contrat');
@@ -1157,7 +1154,7 @@ export class ContractService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = lease.ownerId === userId;
-      const isTenant = lease.tenant.userId === userId;
+      const isTenant = lease.tenantId === userId;
 
       if (!isOwner && !isTenant) {
         throw new ForbiddenException(
@@ -1167,22 +1164,6 @@ export class ContractService {
     }
 
     return this.contractGenerator.generateContractPDF(leaseId);
-  }
-
-  // =============================
-  // DEBUG METHODS
-  // =============================
-  async findTenantByUserId(userId: string) {
-    return this.prisma.tenant.findFirst({
-      where: { userId },
-      include: {
-        leases: {
-          include: {
-            contract: true,
-          },
-        },
-      },
-    });
   }
 
   async findAllContractsDebug() {

@@ -18,7 +18,7 @@ export class BookingService {
   ) {}
 
   async create(createBookingDto: CreateBookingDto, userId: string) {
-    const { propertyId, startDate, endDate, tenantId, nights, totalAmount } =
+    const { propertyId, startDate, endDate, nights, totalAmount } =
       createBookingDto;
 
     // Check if property exists
@@ -77,7 +77,6 @@ export class BookingService {
       data: {
         propertyId,
         userId,
-        tenantId,
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         nights: calculatedNights,
@@ -93,7 +92,6 @@ export class BookingService {
             role: true,
           },
         },
-        tenant: true,
       },
     });
 
@@ -171,20 +169,30 @@ export class BookingService {
   async findAll(userId?: string, userRole?: string) {
     let where: any = {};
 
-    // If user is owner, show bookings for their properties
-    if (userRole === 'owner') {
-      where = {
-        property: {
-          userId: userId,
-        },
-      };
-    } else if (userRole === 'tenant') {
-      // If user is tenant, show their bookings
-      where = {
-        OR: [{ userId }, { tenantId: userId }],
-      };
-    }
     // Admin sees all bookings (no filter)
+    if (userRole === 'admin') {
+      // No filter - admin sees everything
+    } else {
+      // For non-admin users, check if they own any properties
+      const userProperties = await this.prisma.property.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+
+      if (userProperties.length > 0) {
+        // User owns properties - show bookings for their properties
+        where = {
+          property: {
+            userId: userId,
+          },
+        };
+      } else {
+        // User doesn't own properties - show their own bookings (as tenant)
+        where = {
+          userId,
+        };
+      }
+    }
 
     return this.prisma.booking.findMany({
       where,
@@ -268,7 +276,7 @@ export class BookingService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = booking.property.userId === userId;
-      const isTenant = booking.userId === userId || booking.tenantId === userId;
+      const isTenant = booking.userId === userId;
 
       if (!isOwner && !isTenant) {
         throw new ForbiddenException('Access denied to this booking');
@@ -298,9 +306,7 @@ export class BookingService {
     // Check access rights
     if (userRole !== 'admin') {
       const isOwner = existingBooking.property.userId === userId;
-      const isTenant =
-        existingBooking.userId === userId ||
-        existingBooking.tenantId === userId;
+      const isTenant = existingBooking.userId === userId;
 
       if (!isOwner && !isTenant) {
         throw new ForbiddenException('Access denied to update this booking');
@@ -432,62 +438,6 @@ export class BookingService {
               },
             },
             address: true,
-          },
-        },
-        tenant: true,
-        validatedBy: {
-          select: {
-            id: true,
-            email: true,
-            role: true,
-          },
-        },
-      },
-      orderBy: {
-        createdAt: 'desc',
-      },
-    });
-  }
-
-  async findByTenant(tenantId: string, userId?: string, userRole?: string) {
-    // Verify tenant exists
-    const tenant = await this.prisma.tenant.findUnique({
-      where: { id: tenantId },
-    });
-
-    if (!tenant) {
-      throw new NotFoundException('Tenant not found');
-    }
-
-    // Check access rights
-    if (userRole !== 'admin' && tenant.ownerId !== userId) {
-      throw new ForbiddenException(
-        'Access denied to view bookings for this tenant',
-      );
-    }
-
-    return this.prisma.booking.findMany({
-      where: { tenantId },
-      include: {
-        property: {
-          include: {
-            images: {
-              orderBy: {
-                isPrimary: 'desc',
-              },
-            },
-            address: true,
-          },
-        },
-        user: {
-          select: {
-            id: true,
-            email: true,
-            phone: true,
-            role: true,
-            firstName: true,
-            lastName: true,
-            profileImage: true,
           },
         },
         tenant: true,

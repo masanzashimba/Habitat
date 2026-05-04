@@ -249,22 +249,11 @@ export class AuthService {
         // =====================
         country: true,
         city: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-
         // =====================
         // BUSINESS
         // =====================
         companyName: true,
         companyId: true,
-
-        // =====================
-        // SECURITÉ
-        // =====================
-        passwordChangedAt: true,
-        failedLoginAttempts: true,
-        lockedUntil: true,
 
         // =====================
         // META
@@ -279,7 +268,8 @@ export class AuthService {
           select: {
             properties: true,
             bookings: true,
-            ownedTenants: true,
+            leasesAsOwner: true,
+            leasesAsTenant: true,
             reviews: true,
             favorites: true,
             notifications: {

@@ -7,7 +7,6 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { PropertyModule } from './property/property.module';
 import { BookingModule } from './booking/booking.module';
-import { TenantModule } from './tenant/tenant.module';
 import { ReviewModule } from './review/review.module';
 import { NotificationModule } from './notification/notification.module';
 import { LeaseModule } from './lease/lease.module';
@@ -33,7 +32,6 @@ import { TemporaryBlockModule } from './temporary-block/temporary-block.module';
     AuthModule,
     PropertyModule,
     BookingModule,
-    TenantModule,
     ReviewModule,
     NotificationModule,
     LeaseModule,

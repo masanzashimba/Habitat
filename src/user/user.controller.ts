@@ -124,6 +124,19 @@ export class UserController {
   }
 
   // =========================
+  // Locataires de l'utilisateur connecté (propriétaire)
+  // =========================
+  @Get('me/tenants')
+  async getMyTenants(@Request() req: any) {
+    const tenants = await this.userService.getOwnerTenants(
+      req.user.userId,
+      req.user.userId, // requestingUserId est le même que ownerId dans ce contexte
+      req.user.role,
+    );
+    return this.response(true, tenants, 'Locataires récupérés avec succès');
+  }
+
+  // =========================
   // Notifications de l'utilisateur connecté
   // =========================
   @Get('me/notifications')
